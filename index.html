@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title id="bot-window-title">ARIA</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+html, body {
+    width:100%; height:100%;
+    overflow:hidden;
+    background:transparent;
+    font-family:'Segoe UI', -apple-system, sans-serif;
+    user-select:none;
+}
+
+#app {
+    width:100%; height:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:flex-end;
+}
+
+/* ── CHAT PANEL ── */
+#chat-panel {
+    flex:1;
+    width:100%;
+    background:#0d0d1e;
+    border:1px solid rgba(0,180,216,.3);
+    border-radius:20px;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    box-shadow:0 20px 60px rgba(0,0,0,.6), 0 0 40px rgba(0,180,216,.08);
+    margin-bottom:8px;
+    min-height:0;
+}
+#chat-panel.hidden { display:none; }
+
+/* ── HEADER ── */
+#chat-header {
+    background:linear-gradient(135deg,#08081e,#12124a);
+    padding:12px 16px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    border-bottom:1px solid rgba(0,180,216,.15);
+    flex-shrink:0;
+    -webkit-app-region:drag;
+}
+.hdr-robot { width:36px; height:36px; -webkit-app-region:no-drag; flex-shrink:0; }
+.hdr-info h3 { color:#00b4d8; font-size:14px; font-weight:700; }
+.hdr-info p  { color:rgba(255,255,255,.35); font-size:11px; }
+.status-dot {
+    width:7px; height:7px;
+    background:#4ade80; border-radius:50%;
+    animation:blink 2.5s infinite;
+    -webkit-app-region:no-drag;
+}
+.model-tag {
+    background:rgba(0,180,216,.15);
+    border:1px solid rgba(0,180,216,.35);
+    color:#00b4d8; border-radius:6px;
+    cursor:pointer; font-size:11px; font-weight:700;
+    padding:3px 8px; margin-left:auto;
+    transition:all .2s; white-space:nowrap;
+    -webkit-app-region:no-drag;
+}
+.model-tag:hover { background:rgba(0,180,216,.3); }
+.model-tag.heavy { color:#ffd740; border-color:rgba(255,215,64,.4); background:rgba(255,215,64,.1); }
+.hdr-btn {
+    background:none; border:none;
+    color:rgba(255,255,255,.35);
+    cursor:pointer; font-size:15px;
+    padding:4px 5px;
+    transition:color .2s;
+    -webkit-app-region:no-drag;
+    line-height:1;
+}
+.hdr-btn:hover { color:#ff6b6b; }
+.hdr-btn.minimize:hover { color:#facc15; }
+
+/* ── SETUP MODAL ── */
+#setup-modal {
+    position:absolute; left:0; right:0; top:54px; bottom:0;
+    background:#0d0d1e;
+    border-radius:0 0 20px 20px;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    padding:24px; gap:12px;
+    z-index:20;
+}
+#setup-modal.hidden { display:none; }
+#setup-modal h3 { color:#00b4d8; font-size:15px; }
+#setup-modal p  { color:rgba(255,255,255,.4); font-size:12px; text-align:center; line-height:1.7; }
+
+#api-input {
+    width:100%;
+    background:rgba(255,255,255,.07);
+    border:1px solid rgba(0,180,216,.3);
+    border-radius:10px;
+    padding:10px 12px;
+    color:rgba(255,255,255,.9);
+    font-size:12px; font-family:monospace;
+    outline:none;
+}
+#api-input:focus { border-color:#00b4d8; }
+#api-input::placeholder { color:rgba(255,255,255,.2); }
+
+.m-btn {
+    width:100%; padding:11px;
+    border-radius:10px; border:none;
+    cursor:pointer; font-size:13px; font-weight:600;
+    font-family:inherit;
+    transition:transform .15s;
+}
+.m-btn.primary { background:linear-gradient(135deg,#005f87,#00b4d8); color:#fff; }
+.m-btn.secondary {
+    background:rgba(255,255,255,.06);
+    color:rgba(255,255,255,.5);
+    border:1px solid rgba(255,255,255,.1);
+}
+.m-btn:hover { transform:translateY(-1px); }
+
+/* ── SETTINGS PANEL ── */
+#settings-panel {
+    position:absolute; inset:0;
+    background:#0d0d1e;
+    border-radius:20px;
+    display:flex; flex-direction:column;
+    z-index:30;
+    overflow:hidden;
+}
+#settings-panel.hidden { display:none; }
+
+#settings-header {
+    background:linear-gradient(135deg,#08081e,#12124a);
+    padding:14px 16px;
+    display:flex; align-items:center; justify-content:space-between;
+    border-bottom:1px solid rgba(0,180,216,.15);
+    flex-shrink:0;
+}
+#settings-header h3 { color:#00b4d8; font-size:14px; font-weight:700; margin:0; }
+#settings-close {
+    background:none; border:none; color:rgba(255,255,255,.4);
+    cursor:pointer; font-size:16px; padding:2px 6px;
+    transition:color .2s;
+}
+#settings-close:hover { color:#ff6b6b; }
+
+#settings-body {
+    flex:1; overflow-y:auto; padding:16px 14px;
+    display:flex; flex-direction:column; gap:16px;
+}
+#settings-body::-webkit-scrollbar { width:3px; }
+#settings-body::-webkit-scrollbar-thumb { background:rgba(0,180,216,.25); border-radius:2px; }
+
+.s-section { display:flex; flex-direction:column; gap:8px; }
+.s-label {
+    color:rgba(255,255,255,.5); font-size:11px;
+    text-transform:uppercase; letter-spacing:.06em;
+}
+.s-input {
+    width:100%; background:rgba(255,255,255,.07);
+    border:1px solid rgba(0,180,216,.25); border-radius:10px;
+    padding:9px 12px; color:rgba(255,255,255,.9);
+    font-size:12px; font-family:inherit; outline:none;
+    box-sizing:border-box;
+}
+.s-input:focus { border-color:#00b4d8; }
+.s-input::placeholder { color:rgba(255,255,255,.2); }
+textarea.s-input { resize:none; line-height:1.5; }
+
+.s-radio-group { display:flex; gap:8px; flex-wrap:wrap; }
+.s-radio {
+    flex:1; min-width:80px;
+    padding:8px 10px; border-radius:8px; cursor:pointer;
+    border:1px solid rgba(0,180,216,.2);
+    background:rgba(255,255,255,.04);
+    color:rgba(255,255,255,.55); font-size:12px; font-weight:600;
+    text-align:center; transition:all .2s;
+}
+.s-radio:hover { border-color:rgba(0,180,216,.5); color:rgba(255,255,255,.8); }
+.s-radio.active {
+    border-color:#00b4d8; background:rgba(0,180,216,.15);
+    color:#00b4d8;
+}
+
+.s-divider { border:none; border-top:1px solid rgba(255,255,255,.07); margin:0; }
+
+/* ── 캐릭터 선택 그리드 ── */
+.char-grid {
+    display:grid; grid-template-columns:repeat(3, 1fr); gap:8px;
+}
+.char-card {
+    display:flex; flex-direction:column; align-items:center;
+    padding:12px 6px; border-radius:12px; cursor:pointer;
+    border:2px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.04);
+    transition:all .2s; gap:5px;
+}
+.char-card:hover { background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.2); }
+.char-card.active { border-color:var(--char-color, #00b4d8); background:rgba(0,180,216,.1); }
+.char-card .c-emoji { font-size:30px; line-height:1; }
+.char-card .c-name  { font-size:10px; color:rgba(255,255,255,.5); font-weight:600; }
+.char-card.active .c-name { color:var(--char-color, #00b4d8); }
+
+/* ── PRAISE ── */
+.msg-col { display:flex; flex-direction:column; gap:3px; max-width:78%; }
+.msg-actions { display:flex; opacity:0; transition:opacity .2s; padding-left:2px; }
+.msg.bot:hover .msg-actions { opacity:1; }
+.praise-btn {
+    background:none; border:1px solid rgba(255,255,255,.12);
+    border-radius:20px; color:rgba(255,255,255,.3);
+    cursor:pointer; font-size:11px; padding:3px 10px;
+    transition:all .2s; font-family:inherit; white-space:nowrap;
+}
+.praise-btn:hover { border-color:#ffd740; color:#ffd740; background:rgba(255,215,64,.07); }
+.praise-btn.praised {
+    border-color:#ffd740; color:#ffd740;
+    background:rgba(255,215,64,.1);
+    animation:praiseAnim .45s ease;
+}
+@keyframes praiseAnim {
+    0%{transform:scale(1)} 35%{transform:scale(1.35)} 65%{transform:scale(.92)} 100%{transform:scale(1)}
+}
+.praise-toast {
+    position:fixed; bottom:130px; left:50%;
+    transform:translateX(-50%) translateY(12px);
+    background:linear-gradient(135deg,#005f87,#00b4d8);
+    color:#fff; border-radius:22px; padding:9px 20px;
+    font-size:12.5px; font-weight:600;
+    opacity:0; transition:all .3s; z-index:100;
+    white-space:nowrap; pointer-events:none;
+    box-shadow:0 6px 24px rgba(0,180,216,.45);
+}
+.praise-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+.s-danger {
+    background:rgba(255,80,80,.08);
+    border:1px solid rgba(255,80,80,.2);
+    color:rgba(255,120,120,.8);
+    border-radius:10px; padding:9px 12px;
+    font-size:12px; cursor:pointer; font-family:inherit;
+    width:100%; transition:all .2s;
+}
+.s-danger:hover { background:rgba(255,80,80,.18); color:#ff8080; }
+
+#settings-footer {
+    padding:12px 14px;
+    border-top:1px solid rgba(0,180,216,.1);
+    flex-shrink:0;
+}
+
+/* ── MESSAGES ── */
+#messages {
+    flex:1; overflow-y:auto;
+    padding:14px 12px;
+    display:flex; flex-direction:column; gap:10px;
+    min-height:0;
+}
+#messages::-webkit-scrollbar { width:3px; }
+#messages::-webkit-scrollbar-thumb { background:rgba(0,180,216,.25); border-radius:2px; }
+
+.msg { display:flex; gap:7px; animation:slideIn .22s ease; }
+.msg.user { flex-direction:row-reverse; }
+
+.msg-av {
+    width:26px; height:26px; border-radius:50%;
+    background:#0d0d2a; border:1px solid rgba(0,180,216,.3);
+    display:flex; align-items:center; justify-content:center;
+    font-size:13px; flex-shrink:0;
+}
+.msg-bubble {
+    max-width:78%; padding:9px 12px;
+    border-radius:14px; font-size:12.5px; line-height:1.55;
+}
+.msg.bot  .msg-bubble {
+    background:rgba(0,180,216,.09);
+    border:1px solid rgba(0,180,216,.18);
+    color:rgba(255,255,255,.82);
+    border-bottom-left-radius:4px;
+}
+.msg.user .msg-bubble {
+    background:linear-gradient(135deg,#005f87,#00a8cb);
+    color:#fff; border-bottom-right-radius:4px;
+}
+
+/* typing dots */
+.typing-dots { display:flex; gap:4px; padding:2px; }
+.typing-dot {
+    width:5px; height:5px;
+    background:#00b4d8; border-radius:50%;
+    animation:bounce 1.2s infinite;
+}
+.typing-dot:nth-child(2) { animation-delay:.2s; }
+.typing-dot:nth-child(3) { animation-delay:.4s; }
+
+/* ── ATTACHMENT ── */
+#attach-bar {
+    display:flex; align-items:center; gap:10px;
+    padding:7px 10px;
+    background:rgba(0,180,216,.07);
+    border:1px solid rgba(0,180,216,.2);
+    border-radius:8px;
+}
+#attach-bar.hidden { display:none; }
+.attach-thumb {
+    width:44px; height:44px;
+    object-fit:cover; border-radius:5px;
+    border:1px solid rgba(0,180,216,.3); flex-shrink:0;
+}
+.attach-icon { font-size:24px; flex-shrink:0; }
+.attach-label { font-size:11px; color:#00b4d8; font-weight:600; }
+.attach-sub   { font-size:10px; color:rgba(255,255,255,.3); margin-top:2px; }
+.attach-clear {
+    background:none; border:none;
+    color:rgba(255,255,255,.35); cursor:pointer;
+    font-size:14px; padding:2px 6px;
+    transition:color .2s; flex-shrink:0; margin-left:auto;
+}
+.attach-clear:hover { color:#ff6b6b; }
+
+#attach-btn {
+    width:38px; height:38px; border-radius:10px;
+    background:rgba(255,255,255,.07);
+    border:1px solid rgba(255,255,255,.12);
+    color:rgba(255,255,255,.45);
+    cursor:pointer; font-size:17px;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0; transition:all .2s;
+}
+#attach-btn:hover { background:rgba(0,180,216,.15); border-color:rgba(0,180,216,.4); color:#00b4d8; }
+#attach-btn.active { background:rgba(0,180,216,.2); border-color:#00b4d8; color:#00b4d8; }
+
+/* ── INPUT ── */
+#input-area {
+    padding:10px 12px;
+    border-top:1px solid rgba(0,180,216,.1);
+    display:flex; flex-direction:column; gap:6px;
+    flex-shrink:0;
+}
+.input-row {
+    display:flex; gap:7px; align-items:flex-end;
+}
+#msg-input {
+    flex:1;
+    background:rgba(255,255,255,.07);
+    border:1px solid rgba(0,180,216,.2);
+    border-radius:10px;
+    padding:9px 12px;
+    color:rgba(255,255,255,.9);
+    font-size:12.5px; resize:none; outline:none;
+    font-family:inherit; line-height:1.4;
+    min-height:38px; max-height:90px;
+    transition:border-color .2s;
+}
+#msg-input:focus { border-color:rgba(0,180,216,.5); }
+#msg-input::placeholder { color:rgba(255,255,255,.2); }
+
+#send-btn {
+    width:38px; height:38px;
+    border-radius:10px;
+    background:linear-gradient(135deg,#005f87,#00b4d8);
+    border:none; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0; transition:transform .15s, opacity .2s;
+}
+#send-btn:hover:not(:disabled) { transform:scale(1.08); }
+#send-btn:disabled { opacity:.4; cursor:not-allowed; }
+#send-btn svg { width:16px; height:16px; fill:white; }
+
+/* ── ROBOT BUTTON ── */
+#robot-btn {
+    width:84px; height:104px;
+    background:transparent; border:none; outline:none;
+    cursor:grab; padding:4px;
+    display:flex; align-items:center; justify-content:center;
+    position:relative; flex-shrink:0;
+}
+#robot-btn:active { cursor:grabbing; }
+
+#badge {
+    position:absolute; top:6px; right:6px;
+    width:13px; height:13px;
+    background:#ff5c5c; border-radius:50%;
+    border:2px solid transparent;
+    animation:blink 2s infinite;
+}
+#badge.hidden { display:none; }
+
+/* ── DEMO BANNER ── */
+#demo-banner {
+    background:rgba(255,180,0,.12);
+    border-bottom:1px solid rgba(255,180,0,.2);
+    color:rgba(255,200,80,.9);
+    font-size:11px;
+    text-align:center;
+    padding:5px 8px;
+    flex-shrink:0;
+}
+#demo-banner.hidden { display:none; }
+
+/* ── KEYFRAMES ── */
+@keyframes blink  { 0%,100%{opacity:1} 50%{opacity:.4} }
+@keyframes bounce { 0%,60%,100%{transform:translateY(0);opacity:.4} 30%{transform:translateY(-6px);opacity:1} }
+@keyframes slideIn{ from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+.eye-group { transform-box:fill-box; transform-origin:center; transition:transform .08s ease; }
+</style>
+</head>
+<body>
+<div id="app">
+
+    <!-- CHAT PANEL -->
+    <div id="chat-panel" class="hidden">
+
+        <!-- HEADER (draggable) -->
+        <div id="chat-header">
+            <svg id="hdr-robot-svg" class="hdr-robot" viewBox="0 0 40 40" fill="none">
+              <defs>
+                <radialGradient id="hc" cx="35%" cy="28%" r="68%">
+                  <stop offset="0%" stop-color="#d8f0ff"/><stop offset="42%" stop-color="#5ba8d8"/><stop offset="100%" stop-color="#1a5c99"/>
+                </radialGradient>
+                <radialGradient id="he" cx="38%" cy="32%" r="62%">
+                  <stop offset="0%" stop-color="#eef8ff"/><stop offset="100%" stop-color="#b0d8f5"/>
+                </radialGradient>
+                <radialGradient id="hp" cx="28%" cy="24%" r="65%">
+                  <stop offset="0%" stop-color="#4a7ec7"/><stop offset="100%" stop-color="#16286e"/>
+                </radialGradient>
+                <radialGradient id="ha" cx="33%" cy="28%" r="65%">
+                  <stop offset="0%" stop-color="#fff9c4"/><stop offset="55%" stop-color="#ffd600"/><stop offset="100%" stop-color="#e65100"/>
+                </radialGradient>
+                <filter id="hd">
+                  <feDropShadow dx="0.4" dy="1" stdDeviation="1" flood-color="#0a2e5e" flood-opacity="0.4"/>
+                </filter>
+              </defs>
+              <rect x="18.5" y="2" width="3" height="6" rx="1.5" fill="url(#hc)"/>
+              <circle cx="20" cy="3" r="3.5" fill="url(#ha)" filter="url(#hd)"/>
+              <circle cx="18.5" cy="2" r="1" fill="rgba(255,255,255,.7)"/>
+              <rect x="3" y="7" width="34" height="22" rx="8" fill="url(#hc)" filter="url(#hd)"/>
+              <ellipse cx="11" cy="11" rx="8" ry="4" fill="rgba(255,255,255,.2)" transform="rotate(-10 11 11)"/>
+              <circle cx="13" cy="18" r="6" fill="url(#he)" filter="url(#hd)"/>
+              <circle cx="13" cy="18" r="4" fill="url(#hp)"/>
+              <circle cx="10" cy="15" r="2" fill="rgba(255,255,255,.9)"/>
+              <circle cx="27" cy="18" r="6" fill="url(#he)" filter="url(#hd)"/>
+              <circle cx="27" cy="18" r="4" fill="url(#hp)"/>
+              <circle cx="24" cy="15" r="2" fill="rgba(255,255,255,.9)"/>
+              <ellipse cx="6" cy="22" rx="3" ry="2" fill="#ffaec9" opacity=".5"/>
+              <ellipse cx="34" cy="22" rx="3" ry="2" fill="#ffaec9" opacity=".5"/>
+              <path d="M13 24 Q20 29 27 24" stroke="#1a5c99" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+              <rect x="8" y="31" width="24" height="9" rx="5" fill="url(#hc)" filter="url(#hd)"/>
+              <circle cx="15" cy="35.5" r="1.6" fill="#69f0ae" opacity=".9"/>
+              <circle cx="20" cy="35.5" r="1.6" fill="#ffd740" opacity=".9"/>
+              <circle cx="25" cy="35.5" r="1.6" fill="#ff6e40" opacity=".9"/>
+            </svg>
+            <span id="hdr-char-emoji" style="display:none;font-size:26px;line-height:36px;width:36px;height:36px;text-align:center;-webkit-app-region:no-drag;flex-shrink:0;"></span>
+            <div class="hdr-info">
+                <h3 id="bot-title">ARIA</h3>
+                <p id="status-text">AI 업무 어시스턴트</p>
+            </div>
+            <div class="status-dot"></div>
+            <button id="model-toggle" class="model-tag heavy" onclick="toggleModel()" title="모델 전환">70B 🧠</button>
+            <button class="hdr-btn" onclick="openSettings()" title="설정">⚙</button>
+            <button class="hdr-btn minimize" onclick="closeChat()" title="접기">－</button>
+            <button class="hdr-btn" onclick="window.aria.quit()" title="종료">✕</button>
+        </div>
+
+        <!-- SETUP MODAL -->
+        <div id="setup-modal">
+            <div style="font-size:38px">👋</div>
+            <h3 style="font-size:15px">ARIA에 오신 것을 환영합니다!</h3>
+            <div style="width:100%;background:rgba(0,180,216,.08);border:1px solid rgba(0,180,216,.2);border-radius:12px;padding:12px 14px;">
+                <div style="color:#00b4d8;font-size:11px;font-weight:700;margin-bottom:8px;">🔑 Groq API 키 발급 (무료)</div>
+                <div style="color:rgba(255,255,255,.55);font-size:11px;line-height:2;">
+                    ① <a onclick="window.aria.openExternal('https://console.groq.com')" style="color:#00b4d8;cursor:pointer;text-decoration:underline;font-weight:700;">console.groq.com</a> 접속<br>
+                    ② Google 계정으로 로그인 / 회원가입<br>
+                    ③ 왼쪽 메뉴 → <b style="color:rgba(255,255,255,.8)">API Keys</b><br>
+                    ④ Create API Key → 키 복사
+                </div>
+            </div>
+            <input id="api-input" type="password" placeholder="발급받은 키 붙여넣기 (gsk_...)" autocomplete="off"/>
+            <button class="m-btn primary" onclick="saveApiKey()">저장하고 시작 →</button>
+            <div style="color:rgba(255,255,255,.18);font-size:10px;text-align:center;margin-top:-4px">
+                키는 이 기기에만 저장됩니다
+            </div>
+        </div>
+
+        <!-- DEMO BANNER -->
+        <div id="demo-banner" class="hidden">⚠️ 데모 모드 — 실제 AI 응답이 아닙니다</div>
+
+        <!-- SETTINGS PANEL -->
+        <div id="settings-panel" class="hidden">
+            <div id="settings-header">
+                <h3>⚙ 설정</h3>
+                <button id="settings-close" onclick="closeSettings()">✕</button>
+            </div>
+            <div id="settings-body">
+
+                <!-- 캐릭터 이름 -->
+                <div class="s-section">
+                    <div class="s-label">캐릭터 이름</div>
+                    <input id="s-botname" class="s-input" type="text"
+                           placeholder="ARIA" maxlength="20"/>
+                    <div style="color:rgba(255,255,255,.3);font-size:11px">
+                        챗봇의 이름을 자유롭게 설정하세요.
+                    </div>
+                </div>
+
+                <!-- 캐릭터 선택 -->
+                <div class="s-section">
+                    <div class="s-label">캐릭터 선택</div>
+                    <div class="char-grid" id="char-grid"></div>
+                </div>
+
+                <hr class="s-divider"/>
+
+                <!-- API 키 -->
+                <div class="s-section">
+                    <div class="s-label">Groq API 키</div>
+                    <input id="s-apikey" class="s-input" type="password"
+                           placeholder="gsk_xxxxxxxxxxxx" autocomplete="off"/>
+                    <div style="color:rgba(255,255,255,.3);font-size:11px">
+                        console.groq.com → API Keys 에서 무료 발급
+                    </div>
+                </div>
+
+                <!-- 개인정보 보호 안내 -->
+                <div style="background:rgba(0,180,216,.05);border:1px solid rgba(0,180,216,.13);border-radius:10px;padding:10px 12px;display:flex;gap:8px;align-items:flex-start;">
+                    <span style="font-size:15px;flex-shrink:0;margin-top:1px;">🔒</span>
+                    <div style="font-size:11px;color:rgba(255,255,255,.38);line-height:1.85;">
+                        Groq API는 대화 내용을 AI 학습에 사용하지 않으며,<br>
+                        전송 데이터는 응답 생성 후 즉시 폐기됩니다.<br>
+                        <span onclick="window.aria.openExternal('https://groq.com/privacy-policy/')"
+                            style="color:#00b4d8;cursor:pointer;">
+                            Groq 개인정보처리방침 →
+                        </span>
+                    </div>
+                </div>
+
+                <hr class="s-divider"/>
+
+                <!-- 모델 선택 -->
+                <div class="s-section">
+                    <div class="s-label">AI 모델</div>
+                    <div class="s-radio-group">
+                        <div class="s-radio" id="r-8b"  onclick="selectModel('llama-3.1-8b-instant')">⚡ 8B<br><span style="font-size:10px;font-weight:400;opacity:.7">빠름</span></div>
+                        <div class="s-radio" id="r-70b" onclick="selectModel('llama-3.3-70b-versatile')">🧠 70B<br><span style="font-size:10px;font-weight:400;opacity:.7">고성능</span></div>
+                    </div>
+                </div>
+
+                <hr class="s-divider"/>
+
+                <!-- 시스템 프롬프트 -->
+                <div class="s-section">
+                    <div class="s-label">ARIA 역할 설정</div>
+                    <textarea id="s-prompt" class="s-input" rows="5"
+                        placeholder="ARIA의 역할이나 말투를 자유롭게 설정하세요.&#10;(비워두면 기본값 사용)"></textarea>
+                </div>
+
+                <hr class="s-divider"/>
+
+                <!-- 위험 구역 -->
+                <div class="s-section">
+                    <div class="s-label">대화 관리</div>
+                    <button class="s-danger" onclick="clearChat()">🗑 대화 내역 초기화</button>
+                </div>
+
+                <hr class="s-divider"/>
+
+                <!-- 앱 제거 -->
+                <div class="s-section">
+                    <div class="s-label">앱 관리</div>
+                    <button class="s-danger" onclick="confirmUninstall()"
+                        style="border-color:rgba(255,80,80,.4);background:rgba(255,40,40,.06);">
+                        ⚠️ ARIA 완전 삭제 (언인스톨)
+                    </button>
+                    <div style="color:rgba(255,255,255,.25);font-size:11px;line-height:1.6">
+                        앱 파일, API 키, 설정, 바로가기가 모두 삭제됩니다.
+                    </div>
+                </div>
+
+            </div>
+            <div id="settings-footer">
+                <button class="m-btn primary" onclick="saveSettings()">저장</button>
+            </div>
+        </div>
+
+        <!-- MESSAGES -->
+        <div id="messages"></div>
+
+        <!-- INPUT AREA -->
+        <div id="input-area">
+            <div id="attach-bar" class="hidden"></div>
+            <div class="input-row">
+                <input type="file" id="file-input" style="display:none"
+                    accept="image/*,.txt,.md,.py,.js,.ts,.jsx,.tsx,.html,.css,.json,.csv,.log,.mp3,.mp4,.wav,.m4a,.webm,.ogg,.flac"
+                    onchange="handleFileSelect(event)">
+                <button id="attach-btn" onclick="openFilePicker()" title="파일 첨부 (이미지·텍스트·오디오)">💾</button>
+                <textarea id="msg-input"
+                    placeholder="메시지 입력... (Ctrl+V 이미지 · 📎 파일 첨부)"
+                    rows="1"
+                    onkeydown="onKey(event)"
+                    oninput="grow(this)">
+                </textarea>
+                <button id="send-btn" onclick="sendMsg()">
+                    <svg viewBox="0 0 24 24"><path d="M2 21L23 12 2 3v7l15 2-15 2z"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ROBOT BUTTON -->
+    <button id="robot-btn">
+        <div id="badge"></div>
+        <div id="char-emoji-display" style="display:none;font-size:64px;line-height:1;filter:drop-shadow(0 4px 8px rgba(0,0,0,.5))"></div>
+        <svg id="aria-doll" width="76" height="96" viewBox="0 0 76 96" fill="none">
+          <defs>
+            <radialGradient id="dg-body" cx="35%" cy="28%" r="68%">
+              <stop offset="0%"  stop-color="#d8f0ff"/>
+              <stop offset="42%" stop-color="#5ba8d8"/>
+              <stop offset="100%" stop-color="#1a5c99"/>
+            </radialGradient>
+            <radialGradient id="dg-eye" cx="38%" cy="32%" r="62%">
+              <stop offset="0%"  stop-color="#eef8ff"/>
+              <stop offset="100%" stop-color="#b0d8f5"/>
+            </radialGradient>
+            <radialGradient id="dg-pup" cx="28%" cy="24%" r="65%">
+              <stop offset="0%"  stop-color="#4a7ec7"/>
+              <stop offset="100%" stop-color="#16286e"/>
+            </radialGradient>
+            <radialGradient id="dg-ant" cx="33%" cy="28%" r="65%">
+              <stop offset="0%"  stop-color="#fff9c4"/>
+              <stop offset="55%" stop-color="#ffd600"/>
+              <stop offset="100%" stop-color="#e65100"/>
+            </radialGradient>
+            <radialGradient id="dg-gnd" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"  stop-color="rgba(0,40,80,.35)"/>
+              <stop offset="100%" stop-color="rgba(0,40,80,0)"/>
+            </radialGradient>
+            <filter id="dg-ds" x="-30%" y="-30%" width="160%" height="160%">
+              <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#0a2e5e" flood-opacity="0.5"/>
+            </filter>
+            <filter id="dg-sm" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#0a2e5e" flood-opacity="0.4"/>
+            </filter>
+          </defs>
+          <!-- Idle bob group -->
+          <g id="dol-main">
+            <animateTransform attributeName="transform" type="translate"
+              values="0,0; 0,-5; 0,0" dur="3.2s" repeatCount="indefinite"
+              keyTimes="0;0.5;1" calcMode="spline"
+              keySplines="0.37 0 0.63 1; 0.37 0 0.63 1"/>
+            <!-- Ground shadow -->
+            <ellipse cx="38" cy="93" rx="20" ry="4.5" fill="url(#dg-gnd)"/>
+            <!-- Left leg -->
+            <rect x="20" y="70" width="13" height="22" rx="6.5" fill="url(#dg-body)" filter="url(#dg-sm)"/>
+            <!-- Right leg -->
+            <rect x="43" y="70" width="13" height="22" rx="6.5" fill="url(#dg-body)" filter="url(#dg-sm)"/>
+            <!-- Body -->
+            <rect x="13" y="42" width="50" height="32" rx="13" fill="url(#dg-body)" filter="url(#dg-ds)"/>
+            <ellipse cx="26" cy="48" rx="12" ry="4.5" fill="rgba(255,255,255,.22)" transform="rotate(-8 26 48)"/>
+            <circle cx="30" cy="58" r="2.5" fill="#69f0ae" opacity=".9"/>
+            <circle cx="38" cy="58" r="2.5" fill="#ffd740" opacity=".9"/>
+            <circle cx="46" cy="58" r="2.5" fill="#ff6e40" opacity=".9"/>
+            <!-- Left arm -->
+            <rect x="1"  y="46" width="13" height="22" rx="6.5" fill="url(#dg-body)" filter="url(#dg-sm)"/>
+            <!-- Right arm -->
+            <rect x="62" y="46" width="13" height="22" rx="6.5" fill="url(#dg-body)" filter="url(#dg-sm)"/>
+            <!-- Neck -->
+            <rect x="30" y="35" width="16" height="9" rx="4.5" fill="url(#dg-body)"/>
+            <!-- Head -->
+            <rect x="5" y="4" width="66" height="33" rx="14" fill="url(#dg-body)" filter="url(#dg-ds)"/>
+            <ellipse cx="20" cy="10" rx="14" ry="5.5" fill="rgba(255,255,255,.22)" transform="rotate(-10 20 10)"/>
+            <!-- Antenna -->
+            <rect x="35" y="1" width="6" height="7" rx="3" fill="url(#dg-body)"/>
+            <circle cx="38" cy="2.5" r="5" fill="url(#dg-ant)" filter="url(#dg-sm)"/>
+            <circle cx="36" cy="1"   r="1.5" fill="rgba(255,255,255,.75)"/>
+            <!-- Blush -->
+            <ellipse cx="8"  cy="26" rx="4.5" ry="2.8" fill="#ffaec9" opacity=".55"/>
+            <ellipse cx="68" cy="26" rx="4.5" ry="2.8" fill="#ffaec9" opacity=".55"/>
+            <!-- Left eye (blink group) -->
+            <g id="dol-eyl" class="eye-group">
+              <circle cx="22" cy="22" r="9"   fill="url(#dg-eye)" filter="url(#dg-sm)"/>
+              <circle id="dol-pupl" cx="22" cy="22" r="6" fill="url(#dg-pup)"/>
+              <circle cx="17" cy="17.5" r="2.8" fill="rgba(255,255,255,.9)"/>
+              <circle cx="25" cy="16.5" r="1.2" fill="rgba(255,255,255,.6)"/>
+            </g>
+            <!-- Right eye (blink group) -->
+            <g id="dol-eyr" class="eye-group">
+              <circle cx="54" cy="22" r="9"   fill="url(#dg-eye)" filter="url(#dg-sm)"/>
+              <circle id="dol-pupr" cx="54" cy="22" r="6" fill="url(#dg-pup)"/>
+              <circle cx="49" cy="17.5" r="2.8" fill="rgba(255,255,255,.9)"/>
+              <circle cx="57" cy="16.5" r="1.2" fill="rgba(255,255,255,.6)"/>
+            </g>
+            <!-- Smile -->
+            <path d="M22 30 Q38 39 54 30" stroke="#1a5c99" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          </g>
+        </svg>
+    </button>
+</div>
+
+<script>
+let isOpen       = false;
+let isWaiting    = false;
+let history      = [];
+let apiKey       = '';
+let greeted      = false;
+let currentModel = 'llama-3.3-70b-versatile';
+let customPrompt = '';
+let botName      = 'ARIA';
+let pendingImage = null;
+let pendingFile  = null; // { type:'text', content, name, ext }
+
+const CHARACTERS = [
+    { id:'robot',   emoji:'🤖', name:'로봇',     color:'#00b4d8' },
+    { id:'cat',     emoji:'🐱', name:'고양이',   color:'#ff9500' },
+    { id:'fox',     emoji:'🦊', name:'여우',     color:'#ff4444' },
+    { id:'penguin', emoji:'🐧', name:'펭귄',     color:'#a78bfa' },
+    { id:'dog',     emoji:'🐶', name:'강아지',   color:'#ffd740' },
+    { id:'alien',   emoji:'👾', name:'에일리언', color:'#4ade80' },
+];
+let currentChar = CHARACTERS[0];
+
+function applyCharacter(char) {
+    currentChar = char;
+    document.documentElement.style.setProperty('--char-color', char.color);
+    const svg        = document.getElementById('aria-doll');
+    const emojiDisp  = document.getElementById('char-emoji-display');
+    const hdrSvg     = document.getElementById('hdr-robot-svg');
+    const hdrEmoji   = document.getElementById('hdr-char-emoji');
+    if (char.id === 'robot') {
+        svg.style.display = '';
+        emojiDisp.style.display = 'none';
+        if (hdrSvg)   hdrSvg.style.display = '';
+        if (hdrEmoji) hdrEmoji.style.display = 'none';
+    } else {
+        svg.style.display = 'none';
+        emojiDisp.style.display = '';
+        emojiDisp.textContent = char.emoji;
+        if (hdrSvg)   hdrSvg.style.display = 'none';
+        if (hdrEmoji) { hdrEmoji.style.display = 'inline'; hdrEmoji.textContent = char.emoji; }
+    }
+}
+
+function updateCharGrid() {
+    const grid = document.getElementById('char-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    CHARACTERS.forEach(char => {
+        const card = document.createElement('div');
+        card.className = 'char-card' + (char.id === currentChar.id ? ' active' : '');
+        card.style.setProperty('--char-color', char.color);
+        if (char.id === currentChar.id) {
+            card.style.borderColor = char.color;
+            card.style.background  = char.color + '22';
+        }
+        card.innerHTML = `<div class="c-emoji">${char.emoji}</div><div class="c-name">${char.name}</div>`;
+        card.onclick = () => { applyCharacter(char); updateCharGrid(); };
+        grid.appendChild(card);
+    });
+}
+
+function applyBotName(name) {
+    botName = name || 'ARIA';
+    document.getElementById('bot-title').textContent   = botName;
+    document.getElementById('bot-window-title').textContent = botName;
+}
+
+/* ── 초기화: 저장된 설정 로드 ── */
+(async () => {
+    const s = await window.aria.getSettings();
+    if (s.groqApiKey) {
+        apiKey = s.groqApiKey;
+        document.getElementById('setup-modal').classList.add('hidden');
+        document.getElementById('badge').classList.add('hidden');
+    }
+    if (s.model) currentModel = s.model;
+    if (s.customPrompt) customPrompt = s.customPrompt;
+    if (s.botName) applyBotName(s.botName);
+    if (s.charId) {
+        const char = CHARACTERS.find(c => c.id === s.charId);
+        if (char) applyCharacter(char);
+    }
+
+    const modelLabel = currentModel === 'llama-3.1-8b-instant' ? 'Llama 8B' : 'Llama 70B';
+    const modelBtn   = currentModel === 'llama-3.1-8b-instant' ? '8B ⚡' : '70B 🧠';
+    document.getElementById('status-text').textContent = `Groq · ${modelLabel}`;
+    const toggle = document.getElementById('model-toggle');
+    toggle.textContent = modelBtn;
+    toggle.classList.toggle('heavy', currentModel === 'llama-3.3-70b-versatile');
+})();
+
+/* ── 모델 토글: 70B ↔ 8B ── */
+function toggleModel() {
+    const btn = document.getElementById('model-toggle');
+    if (currentModel === 'llama-3.3-70b-versatile') {
+        currentModel = 'llama-3.1-8b-instant';
+        btn.textContent = '8B ⚡';
+        btn.classList.remove('heavy');
+        document.getElementById('status-text').textContent = 'Groq · Llama 8B';
+    } else {
+        currentModel = 'llama-3.3-70b-versatile';
+        btn.textContent = '70B 🧠';
+        btn.classList.add('heavy');
+        document.getElementById('status-text').textContent = 'Groq · Llama 70B';
+    }
+}
+
+/* ── API 키 저장 ── */
+async function saveApiKey() {
+    const val = document.getElementById('api-input').value.trim();
+    if (!val.startsWith('gsk_')) {
+        alert('올바른 Groq API 키를 입력해주세요.\n(gsk_ 로 시작합니다)');
+        return;
+    }
+    apiKey = val;
+    await window.aria.saveSettings({ groqApiKey: val });
+    document.getElementById('setup-modal').classList.add('hidden');
+    document.getElementById('status-text').textContent = 'Groq · Llama 70B';
+    document.getElementById('badge').classList.add('hidden');
+    if (!history.length) greet();
+    focusInput();
+}
+
+/* ── 채팅 열기/닫기 ── */
+function openChat() {
+    if (isOpen) return;
+    isOpen = true;
+    document.getElementById('chat-panel').classList.remove('hidden');
+    window.aria.expand();
+    if (!apiKey) {
+        document.getElementById('setup-modal').classList.remove('hidden');
+    } else {
+        document.getElementById('setup-modal').classList.add('hidden');
+        if (!history.length) greet();
+        focusInput();
+    }
+}
+
+function closeChat() {
+    isOpen = false;
+    document.getElementById('chat-panel').classList.add('hidden');
+    window.aria.collapse();
+}
+
+/* ── 설정 패널 열기/닫기 ── */
+function openSettings() {
+    // 현재 값 채워넣기
+    document.getElementById('s-botname').value = botName !== 'ARIA' ? botName : '';
+    document.getElementById('s-apikey').value  = apiKey || '';
+    document.getElementById('s-prompt').value  = customPrompt || '';
+    updateModelRadio();
+    updateCharGrid();
+    document.getElementById('settings-panel').classList.remove('hidden');
+}
+
+function closeSettings() {
+    document.getElementById('settings-panel').classList.add('hidden');
+}
+
+function selectModel(model) {
+    currentModel = model;
+    updateModelRadio();
+}
+
+function updateModelRadio() {
+    document.getElementById('r-8b').classList.toggle('active',  currentModel === 'llama-3.1-8b-instant');
+    document.getElementById('r-70b').classList.toggle('active', currentModel === 'llama-3.3-70b-versatile');
+}
+
+async function saveSettings() {
+    const newName   = document.getElementById('s-botname').value.trim();
+    const newKey    = document.getElementById('s-apikey').value.trim();
+    const newPrompt = document.getElementById('s-prompt').value.trim();
+
+    if (newKey && !newKey.startsWith('gsk_')) {
+        alert('올바른 Groq API 키를 입력해주세요. (gsk_ 로 시작)');
+        return;
+    }
+    if (newKey) apiKey = newKey;
+    customPrompt = newPrompt;
+    applyBotName(newName || 'ARIA');
+
+    await window.aria.saveSettings({
+        groqApiKey   : apiKey,
+        customPrompt : customPrompt,
+        model        : currentModel,
+        botName      : botName,
+        charId       : currentChar.id,
+    });
+
+    // 헤더 상태 업데이트
+    const modelLabel = currentModel === 'llama-3.1-8b-instant' ? 'Llama 8B' : 'Llama 70B';
+    const modelBtn   = currentModel === 'llama-3.1-8b-instant' ? '8B ⚡' : '70B 🧠';
+    document.getElementById('status-text').textContent = `Groq · ${modelLabel}`;
+    const toggle = document.getElementById('model-toggle');
+    toggle.textContent = modelBtn;
+    toggle.classList.toggle('heavy', currentModel === 'llama-3.3-70b-versatile');
+
+    closeSettings();
+}
+
+function confirmUninstall() {
+    if (!confirm('ARIA를 완전히 제거합니다.\n\n삭제 항목:\n- 앱 파일 전체 (C:\\ARIA)\n- 저장된 API 키 및 설정\n- 바탕화면 / 시작메뉴 바로가기\n\n정말 제거하시겠습니까?')) return;
+    if (!confirm('마지막 확인입니다.\n제거 후에는 복구가 불가능합니다.\n\n계속하시겠습니까?')) return;
+    window.aria.uninstall();
+}
+
+function clearChat() {
+    if (!confirm('대화 내역을 모두 삭제할까요?')) return;
+    history = [];
+    greeted = false;
+    document.getElementById('messages').innerHTML = '';
+    closeSettings();
+    greet();
+}
+
+/* ── 메시지 ── */
+function greet() {
+    if (greeted) return;
+    greeted = true;
+    addMsg('bot', `안녕하세요! 저는 ${botName}입니다 ${currentChar.emoji}\nGroq 엔진으로 빠르게 답변드릴게요.`);
+}
+
+function addMsg(role, text) {
+    const wrap = document.createElement('div');
+    wrap.className = `msg ${role}`;
+    if (role === 'bot') {
+        wrap.innerHTML = `
+            <div class="msg-av">${currentChar.emoji}</div>
+            <div class="msg-col">
+                <div class="msg-bubble">${esc(text).replace(/\n/g, '<br>')}</div>
+                <div class="msg-actions">
+                    <button class="praise-btn" onclick="praiseMsg(this)">👍</button>
+                </div>
+            </div>`;
+    } else {
+        wrap.innerHTML = `
+            <div class="msg-av">👤</div>
+            <div class="msg-bubble">${esc(text).replace(/\n/g, '<br>')}</div>`;
+    }
+    const box = document.getElementById('messages');
+    box.appendChild(wrap);
+    box.scrollTop = box.scrollHeight;
+}
+
+function createStreamBubble() {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg bot';
+    const av = document.createElement('div');
+    av.className = 'msg-av'; av.textContent = currentChar.emoji;
+    const col = document.createElement('div');
+    col.className = 'msg-col';
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    const actions = document.createElement('div');
+    actions.className = 'msg-actions';
+    actions.innerHTML = '<button class="praise-btn" onclick="praiseMsg(this)">👍</button>';
+    col.appendChild(bubble);
+    col.appendChild(actions);
+    wrap.appendChild(av);
+    wrap.appendChild(col);
+    document.getElementById('messages').appendChild(wrap);
+    return bubble;
+}
+
+function showTyping() {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg bot'; wrap.id = 'typing';
+    wrap.innerHTML = `<div class="msg-av">${currentChar.emoji}</div>
+        <div class="msg-bubble"><div class="typing-dots">
+            <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+        </div></div>`;
+    document.getElementById('messages').appendChild(wrap);
+}
+
+/* ── 이미지 리사이즈 ── */
+function resizeImageForAPI(dataUrl) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const MAX = 1280;
+            let w = img.width, h = img.height;
+            if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+        };
+        img.src = dataUrl;
+    });
+}
+
+/* ── 파일 첨부 ── */
+function openFilePicker() {
+    document.getElementById('file-input').value = '';
+    document.getElementById('file-input').click();
+}
+
+async function handleFileSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const name = file.name;
+    const mime = file.type || '';
+    const ext  = name.split('.').pop().toLowerCase();
+
+    if (mime.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+            const resized = await resizeImageForAPI(ev.target.result);
+            pendingFile  = null;
+            pendingImage = resized;
+            showAttachBar({ type:'image', src: resized,
+                label:'📷 이미지 첨부됨', sub: name + ' · 비전 AI로 분석' });
+            document.getElementById('attach-btn').classList.add('active');
+            document.getElementById('msg-input').placeholder = '이미지에 대해 질문하세요...';
+            document.getElementById('msg-input').focus();
+        };
+        reader.readAsDataURL(file);
+        return;
+    }
+
+    const AUDIO_EXTS = ['mp3','mp4','wav','m4a','webm','ogg','flac','mpeg','mpga'];
+    if (mime.startsWith('audio/') || AUDIO_EXTS.includes(ext)) {
+        if (!apiKey) { alert('API 키를 먼저 설정해주세요.'); return; }
+        if (file.size > 25 * 1024 * 1024) { alert('오디오 파일은 25 MB 이하여야 합니다.'); return; }
+        showAttachBar({ type:'file', icon:'🎙️', label:'오디오 변환 중...', sub: name });
+        document.getElementById('attach-btn').classList.add('active');
+        try {
+            const ab    = await file.arrayBuffer();
+            const bytes = new Uint8Array(ab);
+            let binary  = '';
+            for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+            const base64 = btoa(binary);
+            const text   = await window.aria.transcribeAudio({
+                base64, mimeType: mime || 'audio/mpeg', filename: name, apiKey });
+            const inp = document.getElementById('msg-input');
+            inp.value = text;
+            grow(inp);
+            inp.focus();
+        } catch(err) {
+            alert('오디오 변환 실패: ' + err.message);
+        }
+        clearAllAttachments();
+        return;
+    }
+
+    // 텍스트 파일
+    if (file.size > 100 * 1024) { alert('텍스트 파일은 100 KB 이하여야 합니다.'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        const content = ev.target.result;
+        const sizeKB  = (file.size / 1024).toFixed(1);
+        pendingFile   = { type:'text', content, name, ext };
+        pendingImage  = null;
+        const codeExts = ['py','js','ts','jsx','tsx','html','css','json'];
+        const icon = codeExts.includes(ext) ? '💻' : '📄';
+        showAttachBar({ type:'file', icon, label: icon + ' ' + name, sub: sizeKB + ' KB · 텍스트로 첨부' });
+        document.getElementById('attach-btn').classList.add('active');
+        document.getElementById('msg-input').placeholder = '파일에 대해 질문하세요...';
+        document.getElementById('msg-input').focus();
+    };
+    reader.readAsText(file, 'utf-8');
+}
+
+function showAttachBar(config) {
+    const bar = document.getElementById('attach-bar');
+    let html = '';
+    if (config.type === 'image') {
+        html = `<img class="attach-thumb" src="${config.src}" alt="preview">`;
+    } else {
+        html = `<span class="attach-icon">${config.icon}</span>`;
+    }
+    html += `<div style="flex:1;min-width:0;overflow:hidden">
+        <div class="attach-label">${esc(config.label)}</div>
+        <div class="attach-sub">${esc(config.sub)}</div>
+    </div>
+    <button class="attach-clear" onclick="clearAllAttachments()" title="제거">✕</button>`;
+    bar.innerHTML = html;
+    bar.classList.remove('hidden');
+}
+
+function clearAllAttachments() {
+    pendingImage = null;
+    pendingFile  = null;
+    const bar = document.getElementById('attach-bar');
+    bar.classList.add('hidden');
+    bar.innerHTML = '';
+    document.getElementById('attach-btn').classList.remove('active');
+    document.getElementById('msg-input').placeholder = '메시지 입력... (Ctrl+V 이미지 · 📎 파일 첨부)';
+}
+
+/* ── 이미지 붙여넣기 ── */
+document.addEventListener('paste', async (e) => {
+    if (!isOpen) return;
+    const items = e.clipboardData ? e.clipboardData.items : [];
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+            e.preventDefault();
+            const blob = items[i].getAsFile();
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                const resized = await resizeImageForAPI(ev.target.result);
+                pendingFile  = null;
+                pendingImage = resized;
+                showAttachBar({ type:'image', src: resized,
+                    label:'📷 이미지 첨부됨', sub:'스크린샷 · 비전 AI로 분석' });
+                document.getElementById('attach-btn').classList.add('active');
+                document.getElementById('msg-input').placeholder = '이미지에 대해 질문하세요...';
+                document.getElementById('msg-input').focus();
+            };
+            reader.readAsDataURL(blob);
+            break;
+        }
+    }
+});
+
+function addMsgWithImage(text, imageSrc) {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg user';
+    const av = document.createElement('div');
+    av.className = 'msg-av'; av.textContent = '👤';
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.style.padding = '8px';
+    bubble.innerHTML = `<img src="${imageSrc}" style="max-width:180px;max-height:130px;border-radius:6px;display:block;${text ? 'margin-bottom:6px' : ''}"/>` +
+        (text ? esc(text).replace(/\n/g, '<br>') : '');
+    wrap.appendChild(av); wrap.appendChild(bubble);
+    const box = document.getElementById('messages');
+    box.appendChild(wrap);
+    box.scrollTop = box.scrollHeight;
+}
+
+/* ── 메시지 전송 ── */
+async function sendMsg() {
+    if (isWaiting || !apiKey) return;
+    const input = document.getElementById('msg-input');
+    const text  = input.value.trim();
+    if (!text && !pendingImage && !pendingFile) return;
+
+    const imageToSend = pendingImage;
+    const fileToSend  = pendingFile;
+    let userText, displayText;
+
+    if (imageToSend) {
+        userText    = text || '이 이미지를 분석해줘.';
+        addMsgWithImage(text, imageToSend);
+    } else if (fileToSend) {
+        const codeExts = ['py','js','ts','jsx','tsx','html','css','json','txt','md','csv','log'];
+        const fence    = codeExts.includes(fileToSend.ext)
+            ? '```' + fileToSend.ext + '\n' + fileToSend.content + '\n```'
+            : fileToSend.content;
+        userText    = `[파일: ${fileToSend.name}]\n${fence}${text ? '\n\n' + text : ''}`;
+        displayText = `📎 ${fileToSend.name}${text ? '\n' + text : ''}`;
+        addMsg('user', displayText);
+    } else {
+        userText = text;
+        addMsg('user', text);
+    }
+    history.push({ role: 'user', content: userText });
+    input.value = ''; input.style.height = 'auto';
+    clearAllAttachments();
+
+    isWaiting = true;
+    document.getElementById('send-btn').disabled = true;
+    showTyping();
+
+    document.getElementById('typing')?.remove();
+    const bubble = createStreamBubble();
+    let botText = '';
+
+    try {
+        await new Promise((resolve, reject) => {
+            window.aria.onChunk((chunk) => {
+                botText += chunk;
+                bubble.innerHTML = esc(botText).replace(/\n/g, '<br>');
+                document.getElementById('messages').scrollTop = 99999;
+            });
+            window.aria.onDone(() => { window.aria.offListeners(); resolve(); });
+            window.aria.onError((err) => { window.aria.offListeners(); reject(new Error(err)); });
+            window.aria.chatStream({ messages: history, model: currentModel, apiKey, image: imageToSend });
+        });
+        history.push({ role: 'assistant', content: botText });
+    } catch(e) {
+        bubble.innerHTML = `⚠️ 오류: ${esc(e.message)}`;
+    }
+
+    isWaiting = false;
+    document.getElementById('send-btn').disabled = false;
+    focusInput();
+}
+
+/* ── 칭찬 ── */
+const PRAISE_MSGS = [
+    '칭찬해 주셔서 감사해요! 😊',
+    '앗, 기분이 너무 좋은걸요! ✨',
+    '더 열심히 도와드릴게요! 💪',
+    '칭찬은 고래도 춤추게 한대요 🐋',
+    '최고예요! 앞으로도 잘 부탁드려요 🤖',
+    '뿌듯해요! 또 불러주세요 😄',
+];
+
+function praiseMsg(btn) {
+    if (btn.classList.contains('praised')) return;
+    btn.classList.add('praised');
+    btn.textContent = '👍';
+    btn.parentElement.style.opacity = '1';
+    const msg = PRAISE_MSGS[Math.floor(Math.random() * PRAISE_MSGS.length)];
+    showPraiseToast(msg);
+}
+
+function showPraiseToast(msg) {
+    const t = document.createElement('div');
+    t.className = 'praise-toast';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.classList.add('show'), 10);
+    setTimeout(() => {
+        t.classList.remove('show');
+        setTimeout(() => t.remove(), 350);
+    }, 2500);
+}
+
+/* ── 유틸 ── */
+function onKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+}
+function grow(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 90) + 'px';
+}
+function focusInput() {
+    setTimeout(() => document.getElementById('msg-input').focus(), 50);
+}
+function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ── DRAG & CLICK ── */
+(function() {
+    const btn = document.getElementById('robot-btn');
+    let dragging = false, moved = false, startX = 0, startY = 0;
+    btn.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        dragging = true; moved = false;
+        startX = e.screenX; startY = e.screenY;
+        window.aria.dragStart(e.screenX, e.screenY);
+        e.preventDefault();
+    });
+    window.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        if (!moved && Math.hypot(e.screenX - startX, e.screenY - startY) > 5) moved = true;
+        if (moved) window.aria.dragMove(e.screenX, e.screenY);
+    });
+    window.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        window.aria.dragEnd();
+        if (!moved) openChat();
+    });
+})();
+
+/* ── EYE BLINK ── */
+(function scheduleBlink() {
+    setTimeout(() => {
+        ['dol-eyl', 'dol-eyr'].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.style.transition = 'transform .08s ease-in';
+            el.style.transform  = 'scaleY(0.05)';
+            setTimeout(() => {
+                el.style.transition = 'transform .1s ease-out';
+                el.style.transform  = 'scaleY(1)';
+            }, 80);
+        });
+        scheduleBlink();
+    }, 3000 + Math.random() * 4000);
+})();
+
+/* ── PUPIL LOOK-AROUND ── */
+(function scheduleLook() {
+    setTimeout(() => {
+        const dirs = [[0,0],[2,1],[-2,1],[1,-1],[-1,-1],[2,0],[-2,0],[0,2]];
+        const [dx, dy] = dirs[Math.floor(Math.random() * dirs.length)];
+        const pupl = document.getElementById('dol-pupl');
+        const pupr = document.getElementById('dol-pupr');
+        if (pupl) { pupl.setAttribute('cx', 22 + dx); pupl.setAttribute('cy', 22 + dy); }
+        if (pupr) { pupr.setAttribute('cx', 54 + dx); pupr.setAttribute('cy', 22 + dy); }
+        scheduleLook();
+    }, 1500 + Math.random() * 2500);
+})();
+</script>
+</body>
+</html>
