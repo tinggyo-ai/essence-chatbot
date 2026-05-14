@@ -20,7 +20,7 @@ if (typeof electronOrPath === 'string') {
 const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell } = electronOrPath;
 
 const GROQ_URL     = 'https://api.groq.com/openai/v1/chat/completions';
-const DEFAULT_MODEL  = 'llama-3.3-70b-versatile';
+const DEFAULT_MODEL  = 'llama-3.1-8b-instant';
 const VISION_MODEL   = 'meta-llama/llama-4-scout-17b-16e-instruct';
 
 const SYSTEM_PROMPT = `당신은 Essence(AI Responsive Intelligence Assistant)입니다.
