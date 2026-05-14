@@ -83,6 +83,61 @@ function saveWindowState(w, h) {
     fs.writeFileSync(windowStatePath(), JSON.stringify({ w, h }));
 }
 
+let isExpanded     = false;
+let isDragging     = false;
+let resizingByCode = false;
+let lockedSize     = null;
+
+function lockWindowSize(w, h) {
+    if (!win || win.isDestroyed()) return;
+    lockedSize = { w, h };
+    win.setResizable(false);
+    win.setMinimumSize(w, h);
+    win.setMaximumSize(w, h);
+}
+function unlockWindowSizeForBounds() {
+    if (!win || win.isDestroyed()) return;
+    win.setMaximumSize(32767, 32767);
+    win.setMinimumSize(1, 1);
+    win.setResizable(false);
+}
+function setLockedBounds(bounds) {
+    if (!win || win.isDestroyed()) return;
+    resizingByCode = true;
+    try {
+        unlockWindowSizeForBounds();
+        win.setBounds(bounds);
+        lockWindowSize(bounds.width, bounds.height);
+    } finally {
+        resizingByCode = false;
+    }
+}
+function enforceLockedSize() {
+    if (!win || win.isDestroyed() || resizingByCode || !lockedSize) return;
+    const b = win.getBounds();
+    if (b.width === lockedSize.w && b.height === lockedSize.h) return;
+    resizingByCode = true;
+    try {
+        unlockWindowSizeForBounds();
+        win.setBounds({ x: b.x, y: b.y, width: lockedSize.w, height: lockedSize.h });
+        lockWindowSize(lockedSize.w, lockedSize.h);
+    } finally {
+        resizingByCode = false;
+    }
+}
+function repaintCollapsedWindow() {
+    if (!win || win.isDestroyed() || isExpanded) return;
+    const b = win.getBounds();
+    win.setBackgroundColor('#00000000');
+    setLockedBounds({ x: b.x, y: b.y, width: COLLAPSED.w, height: COLLAPSED.h });
+    win.webContents.invalidate();
+}
+function saveCurrentExpandedSize() {
+    if (!win || win.isDestroyed() || !isExpanded) return;
+    const b = win.getBounds();
+    saveWindowState(b.width, b.height);
+}
+
 function showWindow() {
     if (!win) return;
     win.show();
@@ -139,45 +194,77 @@ app.whenReady().then(() => {
     win.once('ready-to-show', () => win.show());
     win.on('page-title-updated', (e) => { e.preventDefault(); win.setTitle(''); });
 
+    win.on('will-resize', (e) => {
+        if (resizingByCode) return;
+        e.preventDefault();
+        enforceLockedSize();
+    });
+    win.on('resize', () => enforceLockedSize());
+
     setupTray();
 });
 
 ipcMain.on('expand', () => {
-    win.setIgnoreMouseEvents(false); // 채팅 패널: 완전 인터랙티브
+    isExpanded = true;
+    win.setIgnoreMouseEvents(false);
     const b = win.getBounds();
     const ws = loadWindowState();
-    win.setResizable(true);
-    win.setMinimumSize(320, 400);
-    win.setBounds({ x: b.x + b.width - ws.w, y: b.y + b.height - ws.h,
-                    width: ws.w, height: ws.h });
+    setLockedBounds({ x: b.x + b.width - ws.w, y: b.y + b.height - ws.h,
+                      width: ws.w, height: ws.h });
 });
 
 ipcMain.on('collapse', () => {
+    isExpanded = false;
     const b = win.getBounds();
     saveWindowState(b.width, b.height);
-    win.setResizable(false);
-    win.setMinimumSize(COLLAPSED.w, COLLAPSED.h);
-    win.setBounds({ x: b.x + b.width - COLLAPSED.w, y: b.y + b.height - COLLAPSED.h,
-                    width: COLLAPSED.w, height: COLLAPSED.h });
-    win.setIgnoreMouseEvents(true, { forward: true }); // 축소 후 다시 passthrough
+    setLockedBounds({ x: b.x + b.width - COLLAPSED.w, y: b.y + b.height - COLLAPSED.h,
+                      width: COLLAPSED.w, height: COLLAPSED.h });
+    repaintCollapsedWindow();
 });
 
-// 마우스가 로봇 위에 있을 때만 인터랙티브, 나머지는 passthrough
-ipcMain.on('mouse-enter-robot', () => win.setIgnoreMouseEvents(false));
-ipcMain.on('mouse-leave-robot', () => win.setIgnoreMouseEvents(true, { forward: true }));
+ipcMain.on('mouse-enter-robot', () => {
+    win.setIgnoreMouseEvents(false);
+    if (isExpanded) enforceLockedSize();
+});
+ipcMain.on('mouse-leave-robot', () => {
+    if (isExpanded) return;
+    if (!isDragging) repaintCollapsedWindow();
+});
 
 let dragOffset = null;
-ipcMain.on('drag-start', (_, { sx, sy }) => {
-    const [wx, wy] = win.getPosition();
-    dragOffset = { dx: sx - wx, dy: sy - wy };
+ipcMain.on('drag-start', (_, payload = {}) => {
+    isDragging = true;
+    win.setIgnoreMouseEvents(false);
+    const b = win.getBounds();
+    const cursor = screen.getCursorScreenPoint();
+    const startX = Number.isFinite(payload.sx) ? payload.sx : cursor.x;
+    const startY = Number.isFinite(payload.sy) ? payload.sy : cursor.y;
+    dragOffset = { dx: startX - b.x, dy: startY - b.y };
 });
-ipcMain.on('drag-move', (_, { sx, sy }) => {
+ipcMain.on('drag-move', () => {
     if (!dragOffset) return;
-    win.setPosition(Math.round(sx - dragOffset.dx), Math.round(sy - dragOffset.dy));
+    const cursor = screen.getCursorScreenPoint();
+    const { x: ax, y: ay, width, height } = screen.getDisplayNearestPoint(cursor).workArea;
+    const b = win.getBounds();
+    const x = Math.max(ax, Math.min(Math.round(cursor.x - dragOffset.dx), ax + width  - b.width));
+    const y = Math.max(ay, Math.min(Math.round(cursor.y - dragOffset.dy), ay + height - b.height));
+    win.setPosition(x, y);
+    enforceLockedSize();
 });
-ipcMain.on('drag-end', () => {
+ipcMain.on('drag-end', (_, payload = {}) => {
+    isDragging = false;
     dragOffset = null;
-    win.webContents.invalidate();
+    if (!isExpanded) {
+        if (payload.overRobot) win.setIgnoreMouseEvents(false);
+        else repaintCollapsedWindow();
+    }
+    setTimeout(() => win.webContents.invalidate(), 30);
+});
+ipcMain.on('release-mouse', () => {
+    if (isExpanded) return;
+    isDragging = false;
+    dragOffset = null;
+    repaintCollapsedWindow();
 });
 ipcMain.on('invalidate-window', () => {
     setTimeout(() => win.webContents.invalidate(), 30);
@@ -357,6 +444,7 @@ ipcMain.on('uninstall', () => {
 
 ipcMain.on('quit', () => app.quit());
 
+app.on('before-quit', () => saveCurrentExpandedSize());
 app.on('window-all-closed', () => {});
 
 process.on('uncaughtException', (err) => {

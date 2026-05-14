@@ -1574,8 +1574,17 @@ function esc(s) {
     const btn = document.getElementById('robot-btn');
     let dragging = false, moved = false, startX = 0, startY = 0;
 
-    // 로봇 위에 있을 때만 창 인터랙티브 → 나머지 영역은 passthrough (흰 박스 방지)
     const isChatOpen = () => !document.getElementById('chat-panel').classList.contains('hidden');
+    const isPointerOverRobot = (e) => {
+        const r = btn.getBoundingClientRect();
+        return e.clientX >= r.left && e.clientX <= r.right &&
+               e.clientY >= r.top  && e.clientY <= r.bottom;
+    };
+    const releaseCollapsedMouse = () => {
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        if (!isChatOpen()) window.aria.releaseMouse();
+    };
+
     btn.addEventListener('mouseenter', () => window.aria.mouseEnterRobot());
     btn.addEventListener('mouseleave', () => { if (!dragging && !isChatOpen()) window.aria.mouseLeaveRobot(); });
 
@@ -1583,30 +1592,41 @@ function esc(s) {
         if (e.button !== 0) return;
         dragging = true; moved = false;
         startX = e.screenX; startY = e.screenY;
-        // dragStart는 실제 이동 임계값 초과 시점에 호출 → 꾹 누름 중 손떨림으로 인한 밀림 방지
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
         e.preventDefault();
+        e.stopPropagation();
     });
+    btn.addEventListener('dragstart',   (e) => e.preventDefault());
+    btn.addEventListener('selectstart', (e) => e.preventDefault());
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
+
     window.addEventListener('mousemove', (e) => {
         if (!dragging) return;
-        if (!moved && Math.hypot(e.screenX - startX, e.screenY - startY) > 12) {
+        if (!moved && Math.hypot(e.screenX - startX, e.screenY - startY) > 24) {
             moved = true;
-            window.aria.dragStart(startX, startY); // 원래 누른 위치 기준으로 offset 계산
+            window.aria.dragStart(startX, startY);
         }
         if (moved) window.aria.dragMove(e.screenX, e.screenY);
     });
     window.addEventListener('mouseup', (e) => {
         if (!dragging) return;
+        const overRobot = isPointerOverRobot(e);
         dragging = false;
-        window.aria.dragEnd();
+        window.aria.dragEnd({ overRobot });
         if (!moved) {
-            openChat(); // expand() 에서 setIgnoreMouseEvents(false) 처리됨
-        } else {
-            // 드래그 종료 후 로봇 버튼 위 여부 확인 후 passthrough 복원
-            const r = btn.getBoundingClientRect();
-            if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) {
-                window.aria.mouseLeaveRobot();
-            }
+            openChat();
+        } else if (!overRobot) {
+            releaseCollapsedMouse();
         }
+    });
+    window.addEventListener('blur', () => {
+        if (!isChatOpen()) {
+            dragging = false; moved = false;
+            releaseCollapsedMouse();
+        }
+    });
+    document.addEventListener('mouseleave', () => {
+        if (!dragging) releaseCollapsedMouse();
     });
 })();
 
@@ -1627,11 +1647,6 @@ function esc(s) {
     }, 3000 + Math.random() * 4000);
 })();
 
-/* ── 투명 창 blur 아티팩트 방지 ── */
-window.addEventListener('blur', () => {
-    // opacity 토글 대신 main 프로세스의 invalidate()로 클리어 (opacity 토글이 흰색 바 유발)
-    window.aria.invalidateWindow();
-});
 
 /* ── PUPIL LOOK-AROUND ── */
 (function scheduleLook() {
