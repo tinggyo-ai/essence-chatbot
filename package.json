@@ -1,7 +1,7 @@
 {
-  "name": "aria-desktop",
+  "name": "essence-chat",
   "version": "1.0.0",
-  "description": "ARIA AI 업무 어시스턴트",
+  "description": "Essence AI 업무 어시스턴트",
   "main": "main.js",
   "scripts": {
     "start": ".\\node_modules\\.bin\\electron.cmd ."

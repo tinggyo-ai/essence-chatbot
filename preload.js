@@ -14,8 +14,16 @@ contextBridge.exposeInMainWorld('aria', {
     onDone      : (cb)       => ipcRenderer.once('chat-done', () => cb()),
     onError     : (cb)       => ipcRenderer.once('chat-error', (_, err) => cb(err)),
     openExternal    : (url)  => ipcRenderer.send('open-external', url),
+    listHistories   : ()          => ipcRenderer.invoke('list-histories'),
+    saveHistory     : (data)      => ipcRenderer.invoke('save-history', data),
+    loadHistory     : (title)     => ipcRenderer.invoke('load-history', title),
+    deleteHistory   : (title)     => ipcRenderer.invoke('delete-history', title),
+    summarizeChat   : (data)      => ipcRenderer.invoke('summarize-chat', data),
     uninstall       : ()     => ipcRenderer.send('uninstall'),
     transcribeAudio : (data) => ipcRenderer.invoke('transcribe-audio', data),
+    mouseEnterRobot  : ()    => ipcRenderer.send('mouse-enter-robot'),
+    mouseLeaveRobot  : ()    => ipcRenderer.send('mouse-leave-robot'),
+    invalidateWindow : ()    => ipcRenderer.send('invalidate-window'),
     offListeners: ()         => {
         ipcRenderer.removeAllListeners('chat-chunk');
         ipcRenderer.removeAllListeners('chat-done');

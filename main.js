@@ -23,7 +23,7 @@ const GROQ_URL     = 'https://api.groq.com/openai/v1/chat/completions';
 const DEFAULT_MODEL  = 'llama-3.3-70b-versatile';
 const VISION_MODEL   = 'meta-llama/llama-4-scout-17b-16e-instruct';
 
-const SYSTEM_PROMPT = `당신은 ARIA(AI Responsive Intelligence Assistant)입니다.
+const SYSTEM_PROMPT = `당신은 Essence(AI Responsive Intelligence Assistant)입니다.
 IT 기업에서 일하는 직원들의 전반적인 업무를 도와주는 친근한 AI 동료입니다.
 
 [말투 & 태도]
@@ -48,7 +48,7 @@ let tray;
 
 const MARGIN    = 16;
 const EXPANDED  = { w: 380, h: 560 };
-const COLLAPSED = { w: 92,  h: 112 };
+const COLLAPSED = { w: 92,  h: 120 };
 
 app.setPath('userData', path.join(__dirname, 'userdata'));
 
@@ -70,6 +70,19 @@ function saveSettings(data) {
     fs.writeFileSync(settingsPath(), JSON.stringify(data, null, 2));
 }
 
+function windowStatePath() {
+    return path.join(app.getPath('userData'), 'window-state.json');
+}
+function loadWindowState() {
+    try { return JSON.parse(fs.readFileSync(windowStatePath(), 'utf8')); }
+    catch { return { w: EXPANDED.w, h: EXPANDED.h }; }
+}
+function saveWindowState(w, h) {
+    const dir = app.getPath('userData');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(windowStatePath(), JSON.stringify({ w, h }));
+}
+
 function showWindow() {
     if (!win) return;
     win.show();
@@ -83,9 +96,9 @@ function setupTray() {
         : nativeImage.createEmpty();
 
     tray = new Tray(icon);
-    tray.setToolTip('ARIA - AI 업무 어시스턴트');
+    tray.setToolTip('');
     tray.setContextMenu(Menu.buildFromTemplate([
-        { label: 'ARIA 열기', click: () => showWindow() },
+        { label: 'Essence 열기', click: () => showWindow() },
         { type: 'separator' },
         { label: '종료',       click: () => app.quit() },
     ]));
@@ -104,36 +117,54 @@ app.whenReady().then(() => {
         transparent    : true,
         backgroundColor: '#00000000',
         hasShadow      : false,
-        alwaysOnTop    : true,
-        skipTaskbar    : false,
+        alwaysOnTop    : false,
+        skipTaskbar    : true,
         resizable      : false,
         show           : false,
         webPreferences : {
-            preload         : path.join(__dirname, 'preload.js'),
-            contextIsolation: true,
+            preload              : path.join(__dirname, 'preload.js'),
+            contextIsolation     : true,
+            backgroundThrottling : false,
         },
     });
 
+    // 'floating' 레벨: 일반 앱 위에 유지하되 IME/시스템 UI 창은 Essence 위로 렌더링 허용
+    win.setAlwaysOnTop(true, 'floating');
+
+    // 기본 상태: 창 전체를 passthrough → 로봇 영역 밖 클릭 시 포커스 이벤트 차단 → 흰 박스 방지
+    win.setIgnoreMouseEvents(true, { forward: true });
+
+    win.setTitle('');
     win.loadFile('index.html');
     win.once('ready-to-show', () => win.show());
+    win.on('page-title-updated', (e) => { e.preventDefault(); win.setTitle(''); });
+
     setupTray();
 });
 
 ipcMain.on('expand', () => {
+    win.setIgnoreMouseEvents(false); // 채팅 패널: 완전 인터랙티브
     const b = win.getBounds();
+    const ws = loadWindowState();
     win.setResizable(true);
     win.setMinimumSize(320, 400);
-    win.setBounds({ x: b.x + b.width - EXPANDED.w, y: b.y + b.height - EXPANDED.h,
-                    width: EXPANDED.w, height: EXPANDED.h });
+    win.setBounds({ x: b.x + b.width - ws.w, y: b.y + b.height - ws.h,
+                    width: ws.w, height: ws.h });
 });
 
 ipcMain.on('collapse', () => {
+    const b = win.getBounds();
+    saveWindowState(b.width, b.height);
     win.setResizable(false);
     win.setMinimumSize(COLLAPSED.w, COLLAPSED.h);
-    const b = win.getBounds();
     win.setBounds({ x: b.x + b.width - COLLAPSED.w, y: b.y + b.height - COLLAPSED.h,
                     width: COLLAPSED.w, height: COLLAPSED.h });
+    win.setIgnoreMouseEvents(true, { forward: true }); // 축소 후 다시 passthrough
 });
+
+// 마우스가 로봇 위에 있을 때만 인터랙티브, 나머지는 passthrough
+ipcMain.on('mouse-enter-robot', () => win.setIgnoreMouseEvents(false));
+ipcMain.on('mouse-leave-robot', () => win.setIgnoreMouseEvents(true, { forward: true }));
 
 let dragOffset = null;
 ipcMain.on('drag-start', (_, { sx, sy }) => {
@@ -144,7 +175,13 @@ ipcMain.on('drag-move', (_, { sx, sy }) => {
     if (!dragOffset) return;
     win.setPosition(Math.round(sx - dragOffset.dx), Math.round(sy - dragOffset.dy));
 });
-ipcMain.on('drag-end', () => { dragOffset = null; });
+ipcMain.on('drag-end', () => {
+    dragOffset = null;
+    win.webContents.invalidate();
+});
+ipcMain.on('invalidate-window', () => {
+    setTimeout(() => win.webContents.invalidate(), 30);
+});
 
 ipcMain.handle('get-settings',  ()        => loadSettings());
 ipcMain.handle('save-settings', (_, data) => { saveSettings(data); return true; });
@@ -218,6 +255,61 @@ ipcMain.on('chat-stream', async (_, { messages, model, apiKey, image }) => {
 
 ipcMain.on('open-external', (_, url) => shell.openExternal(url));
 
+// ── History (대화 요약 저장/불러오기) ──────────────────────────────
+const historiesDir = () => path.join(app.getPath('userData'), 'histories');
+
+ipcMain.handle('list-histories', () => {
+    const dir = historiesDir();
+    if (!fs.existsSync(dir)) return [];
+    return fs.readdirSync(dir)
+        .filter(f => f.endsWith('.md'))
+        .sort()
+        .map(f => f.replace(/\.md$/, ''));
+});
+
+ipcMain.handle('save-history', (_, { title, content }) => {
+    const dir = historiesDir();
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const safe = title.replace(/[\\/:*?"<>|]/g, '_');
+    fs.writeFileSync(path.join(dir, safe + '.md'), content, 'utf8');
+    return true;
+});
+
+ipcMain.handle('load-history', (_, title) => {
+    const safe = title.replace(/[\\/:*?"<>|]/g, '_');
+    const p = path.join(historiesDir(), safe + '.md');
+    return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null;
+});
+
+ipcMain.handle('delete-history', (_, title) => {
+    const safe = title.replace(/[\\/:*?"<>|]/g, '_');
+    const p = path.join(historiesDir(), safe + '.md');
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+    return true;
+});
+
+ipcMain.handle('summarize-chat', async (_, { messages, model, apiKey }) => {
+    const res = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type' : 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+            model: model || DEFAULT_MODEL,
+            messages: [
+                { role: 'system', content: SYSTEM_PROMPT },
+                ...messages,
+                { role: 'user', content: '지금까지의 대화를 인수인계 문서 형식으로 요약해주세요. 다음 세션에서 AI가 맥락을 빠르게 파악할 수 있도록 핵심 주제, 중요한 결정사항, 진행 중인 작업, 이어서 논의할 내용을 마크다운 형식으로 간결하게 정리해주세요.' },
+            ],
+            stream: false,
+        }),
+    });
+    if (!res.ok) throw new Error(`Groq 오류 (${res.status}): ${await res.text()}`);
+    const data = await res.json();
+    return data.choices[0].message.content;
+});
+
 ipcMain.handle('transcribe-audio', async (_, { base64, mimeType, filename, apiKey }) => {
     const buffer = Buffer.from(base64, 'base64');
     const blob   = new Blob([buffer], { type: mimeType });
@@ -239,22 +331,22 @@ ipcMain.on('uninstall', () => {
 
     // 개발 환경(C:\chatbot 등)에서 실수로 실행되는 것을 방지
     const normalized = installDir.replace(/\//g, '\\').toLowerCase();
-    if (normalized !== 'c:\\aria') {
+    if (normalized !== 'c:\\essence') {
         win.webContents.send('chat-error',
-            '⚠️ 언인스톨은 C:\\ARIA 에 정식 설치된 경우에만 사용 가능합니다.\n현재 경로: ' + installDir);
+            '⚠️ 언인스톨은 C:\\Essence 에 정식 설치된 경우에만 사용 가능합니다.\n현재 경로: ' + installDir);
         return;
     }
 
-    const tempScript = require('os').tmpdir() + '\\aria_remove.bat';
+    const tempScript = require('os').tmpdir() + '\\essence_remove.bat';
     const script = [
         '@echo off',
         'timeout /t 8 /nobreak > nul',
         `rmdir /S /Q "${installDir}" 2>nul`,
         'timeout /t 3 /nobreak > nul',
         `if exist "${installDir}" rmdir /S /Q "${installDir}" 2>nul`,
-        `if exist "%USERPROFILE%\\Desktop\\ARIA AI.lnk" del "%USERPROFILE%\\Desktop\\ARIA AI.lnk"`,
-        `if exist "%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\ARIA" rmdir /S /Q "%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\ARIA"`,
-        'reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ARIA" /f >nul 2>&1',
+        `if exist "%USERPROFILE%\\Desktop\\Essence.lnk" del "%USERPROFILE%\\Desktop\\Essence.lnk"`,
+        `if exist "%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Essence" rmdir /S /Q "%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Essence"`,
+        'reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Essence" /f >nul 2>&1',
         'del "%~f0"',
     ].join('\r\n');
     fs.writeFileSync(tempScript, script, 'utf8');
@@ -268,5 +360,5 @@ ipcMain.on('quit', () => app.quit());
 app.on('window-all-closed', () => {});
 
 process.on('uncaughtException', (err) => {
-    console.error('[ARIA 오류]', err.message);
+    console.error('[Essence 오류]', err.message);
 });

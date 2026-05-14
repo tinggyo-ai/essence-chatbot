@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+<meta charset="UTF-8">
+<title>ARIA AI 업무 어시스턴트 - 설치</title>
+<HTA:APPLICATION
+    ID="oARIA"
+    APPLICATIONNAME="ARIA Setup"
+    ICON="source\icon.ico"
+    SCROLL="no"
+    SINGLEINSTANCE="yes"
+    WINDOWSTATE="normal"
+    CAPTION="yes"
+    SHOWINTASKBAR="yes"
+    BORDER="dialog"
+    MAXIMIZEBUTTON="no"
+    MINIMIZEBUTTON="yes"/>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+    background:#0d0d1e;
+    font-family:'Segoe UI', sans-serif;
+    color:#fff;
+    overflow:hidden;
+    width:520px; height:540px;
+}
+
+/* ── Pages ── */
+.page { display:none; flex-direction:column; height:540px; }
+.page.active { display:flex; }
+
+/* ── Header ── */
+.hdr {
+    background:linear-gradient(135deg,#08081e,#12124a);
+    padding:18px 28px 14px;
+    border-bottom:1px solid rgba(0,180,216,.2);
+    flex-shrink:0;
+}
+.hdr-icon { font-size:26px; margin-bottom:4px; }
+.hdr h2   { color:#00b4d8; font-size:17px; font-weight:700; }
+.hdr p    { color:rgba(255,255,255,.38); font-size:11.5px; margin-top:3px; }
+
+/* ── Step Bar ── */
+.stepbar {
+    display:flex;
+    background:rgba(0,0,0,.3);
+    border-bottom:1px solid rgba(255,255,255,.05);
+    padding:10px 24px;
+    gap:4px;
+    flex-shrink:0;
+}
+.step {
+    flex:1; display:flex; flex-direction:column;
+    align-items:center; gap:4px;
+    font-size:10px; color:rgba(255,255,255,.2);
+}
+.step-num {
+    width:22px; height:22px; border-radius:50%;
+    background:rgba(255,255,255,.07);
+    border:1px solid rgba(255,255,255,.1);
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:600;
+}
+.step.s-done   { color:#4ade80; }
+.step.s-done .step-num   { background:#4ade80; border-color:#4ade80; color:#000; }
+.step.s-active { color:#00b4d8; font-weight:700; }
+.step.s-active .step-num { background:#00b4d8; border-color:#00b4d8; color:#000; }
+
+/* ── Content ── */
+.content {
+    flex:1; padding:20px 28px;
+    display:flex; flex-direction:column; gap:12px;
+    overflow-y:auto;
+}
+.content.center { justify-content:center; align-items:center; text-align:center; }
+
+/* ── Footer ── */
+.footer {
+    padding:12px 28px;
+    border-top:1px solid rgba(255,255,255,.06);
+    display:flex; justify-content:flex-end; gap:10px;
+    flex-shrink:0;
+}
+
+/* ── Buttons ── */
+.btn {
+    padding:9px 22px; border-radius:8px; border:none;
+    font-size:13px; font-weight:600; cursor:pointer;
+    font-family:inherit; transition:all .15s;
+}
+.btn-primary  { background:linear-gradient(135deg,#005f87,#00b4d8); color:#fff; }
+.btn-primary:hover  { transform:translateY(-1px); opacity:.95; }
+.btn-primary:disabled { opacity:.35; cursor:not-allowed; transform:none; }
+.btn-ghost { background:rgba(255,255,255,.07); color:rgba(255,255,255,.45); border:1px solid rgba(255,255,255,.1); }
+
+/* ── Status Box ── */
+.status-box {
+    background:rgba(0,0,0,.3);
+    border:1px solid rgba(0,180,216,.13);
+    border-radius:10px; padding:4px 0;
+}
+.srow {
+    display:flex; align-items:center; gap:10px;
+    padding:9px 14px; font-size:12.5px;
+    color:rgba(255,255,255,.55);
+    border-bottom:1px solid rgba(255,255,255,.04);
+}
+.srow:last-child { border-bottom:none; }
+.srow-icon { font-size:15px; width:22px; text-align:center; flex-shrink:0; }
+.c-ok   { color:#4ade80; }
+.c-run  { color:#00b4d8; }
+.c-wait { color:rgba(255,255,255,.25); }
+.c-err  { color:#ff6b6b; }
+
+/* ── Progress ── */
+.prog-wrap { background:rgba(255,255,255,.07); border-radius:4px; height:5px; overflow:hidden; }
+.prog-bar  { height:5px; background:linear-gradient(90deg,#005f87,#00b4d8); border-radius:4px; transition:width .5s; }
+.prog-bar.anim { animation:pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%{width:20%} 50%{width:65%} 100%{width:20%} }
+
+/* ── Log ── */
+.log {
+    background:rgba(0,0,0,.4); border:1px solid rgba(255,255,255,.07);
+    border-radius:8px; padding:8px 12px;
+    font-family:Consolas,monospace; font-size:11px;
+    color:rgba(255,255,255,.35); height:70px; overflow-y:auto; line-height:1.8;
+}
+
+/* ── Info ── */
+.info-box {
+    background:rgba(0,180,216,.07); border:1px solid rgba(0,180,216,.2);
+    border-radius:10px; padding:14px 16px;
+}
+.info-label { color:#00b4d8; font-size:11px; font-weight:700; margin-bottom:8px; }
+.info-steps { color:rgba(255,255,255,.55); font-size:12px; line-height:2; }
+.info-steps b { color:rgba(255,255,255,.85); }
+
+.link-btn {
+    display:block; margin-top:10px; padding:9px 14px;
+    background:rgba(0,180,216,.15); border:1px solid rgba(0,180,216,.3);
+    color:#00b4d8; border-radius:8px; text-align:center;
+    font-size:12px; font-weight:600; cursor:pointer; transition:all .2s;
+}
+.link-btn:hover { background:rgba(0,180,216,.28); }
+
+.big-icon { font-size:52px; margin-bottom:8px; }
+.welcome-title { color:#00b4d8; font-size:18px; font-weight:700; margin-bottom:8px; }
+.welcome-desc { color:rgba(255,255,255,.45); font-size:12.5px; line-height:1.9; }
+
+.tags { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:8px; }
+.tag {
+    background:rgba(0,180,216,.1); border:1px solid rgba(0,180,216,.2);
+    color:#00b4d8; border-radius:20px; padding:4px 12px; font-size:11px;
+}
+
+.done-title { color:#4ade80; font-size:20px; font-weight:700; margin:8px 0; }
+.done-desc  { color:rgba(255,255,255,.45); font-size:12.5px; line-height:1.9; }
+.launch-btn {
+    margin-top:12px; padding:12px 28px;
+    background:linear-gradient(135deg,#005f87,#00b4d8);
+    border:none; border-radius:10px; color:#fff;
+    font-size:14px; font-weight:700; cursor:pointer;
+    font-family:inherit; transition:all .15s;
+}
+.launch-btn:hover { transform:translateY(-2px); }
+</style>
+</head>
+<body onload="htaInit()">
+
+<!-- ══════════════════════ PAGE 1: Welcome ══════════════════════ -->
+<div id="p1" class="page active">
+  <div class="hdr">
+    <div class="hdr-icon">🤖</div>
+    <h2>ARIA AI 업무 어시스턴트</h2>
+    <p>설치 마법사가 모든 과정을 자동으로 안내합니다.</p>
+  </div>
+  <div class="stepbar">
+    <div class="step s-active"><div class="step-num">1</div>시작</div>
+    <div class="step"><div class="step-num">2</div>환경</div>
+    <div class="step"><div class="step-num">3</div>설치</div>
+    <div class="step"><div class="step-num">4</div>API키</div>
+    <div class="step"><div class="step-num">5</div>완료</div>
+  </div>
+  <div class="content center">
+    <div class="big-icon">🤖</div>
+    <div class="welcome-title">환영합니다!</div>
+    <div class="welcome-desc">
+      ARIA는 <b style="color:#00b4d8">Groq AI</b> 기반의 업무 도우미입니다.<br>
+      이 마법사가 Node.js, Electron 설치부터<br>
+      API 키 설정까지 모두 안내해 드립니다.
+    </div>
+    <div class="tags">
+      <span class="tag">⚡ 빠른 응답</span>
+      <span class="tag">🆓 무료 AI</span>
+      <span class="tag">💼 업무 특화</span>
+      <span class="tag">🔒 로컬 설치</span>
+    </div>
+    <button onclick="goPage(2)" style="
+        margin-top:18px;
+        padding:14px 48px;
+        background:linear-gradient(135deg,#005f87,#00b4d8);
+        border:none; border-radius:12px; color:#fff;
+        font-size:15px; font-weight:700; cursor:pointer;
+        font-family:'Segoe UI',sans-serif;
+        box-shadow:0 4px 20px rgba(0,180,216,.35);
+        letter-spacing:.03em;
+    ">설치 시작 →</button>
+    <div style="color:rgba(255,255,255,.2);font-size:11px;margin-top:6px;">
+        설치 위치: C:\ARIA
+    </div>
+  </div>
+  <div class="footer"></div>
+</div>
+
+<!-- ══════════════════════ PAGE 2: Node.js ══════════════════════ -->
+<div id="p2" class="page">
+  <div class="hdr">
+    <div class="hdr-icon">⚙️</div>
+    <h2>환경 설치</h2>
+    <p>Node.js 실행 환경을 확인하고 설치합니다.</p>
+  </div>
+  <div class="stepbar" id="sb2">
+    <div class="step s-done"><div class="step-num">✓</div>시작</div>
+    <div class="step s-active"><div class="step-num">2</div>환경</div>
+    <div class="step"><div class="step-num">3</div>설치</div>
+    <div class="step"><div class="step-num">4</div>API키</div>
+    <div class="step"><div class="step-num">5</div>완료</div>
+  </div>
+  <div class="content">
+    <div class="status-box">
+      <div class="srow" id="row-node">
+        <span class="srow-icon">⏳</span>
+        <span>Node.js 확인 중...</span>
+      </div>
+    </div>
+    <div class="prog-wrap"><div class="prog-bar anim" id="prog2" style="width:25%"></div></div>
+    <div class="log" id="log2">시작 중...</div>
+  </div>
+  <div class="footer">
+    <button class="btn btn-primary" id="btn2" onclick="goPage(3)" disabled>다음 →</button>
+  </div>
+</div>
+
+<!-- ══════════════════════ PAGE 3: Install ══════════════════════ -->
+<div id="p3" class="page">
+  <div class="hdr">
+    <div class="hdr-icon">📦</div>
+    <h2>ARIA 설치</h2>
+    <p>파일 복사 및 AI 엔진(Electron)을 설치합니다.</p>
+  </div>
+  <div class="stepbar">
+    <div class="step s-done"><div class="step-num">✓</div>시작</div>
+    <div class="step s-done"><div class="step-num">✓</div>환경</div>
+    <div class="step s-active"><div class="step-num">3</div>설치</div>
+    <div class="step"><div class="step-num">4</div>API키</div>
+    <div class="step"><div class="step-num">5</div>완료</div>
+  </div>
+  <div class="content">
+    <div class="status-box">
+      <div class="srow" id="row-copy">
+        <span class="srow-icon">⏳</span><span>파일 복사 준비 중...</span>
+      </div>
+      <div class="srow" id="row-electron">
+        <span class="srow-icon">⏸</span><span class="c-wait">Electron 엔진 (대기)</span>
+      </div>
+      <div class="srow" id="row-shortcut">
+        <span class="srow-icon">⏸</span><span class="c-wait">바로가기 생성 (대기)</span>
+      </div>
+    </div>
+    <div class="prog-wrap"><div class="prog-bar" id="prog3" style="width:0%"></div></div>
+    <div class="log" id="log3">설치 준비 중...</div>
+  </div>
+  <div class="footer">
+    <button class="btn btn-primary" id="btn3" onclick="goPage(4)" disabled>다음 →</button>
+  </div>
+</div>
+
+<!-- ══════════════════════ PAGE 4: Groq API ══════════════════════ -->
+<div id="p4" class="page">
+  <div class="hdr">
+    <div class="hdr-icon">🔑</div>
+    <h2>Groq API 키 발급</h2>
+    <p>AI 사용을 위한 무료 키를 발급받으세요. (5분 소요)</p>
+  </div>
+  <div class="stepbar">
+    <div class="step s-done"><div class="step-num">✓</div>시작</div>
+    <div class="step s-done"><div class="step-num">✓</div>환경</div>
+    <div class="step s-done"><div class="step-num">✓</div>설치</div>
+    <div class="step s-active"><div class="step-num">4</div>API키</div>
+    <div class="step"><div class="step-num">5</div>완료</div>
+  </div>
+  <div class="content">
+    <div class="info-box">
+      <div class="info-label">🔑 Groq API 키 발급 방법 (완전 무료)</div>
+      <div class="info-steps">
+        ① 아래 버튼으로 <b>console.groq.com</b> 접속<br>
+        ② <b>Google 계정</b>으로 로그인 / 회원가입<br>
+        ③ 왼쪽 메뉴 → <b>API Keys</b> 클릭<br>
+        ④ <b>Create API Key</b> → 이름 입력 → 키 복사<br>
+        ⑤ ARIA 실행 후 첫 화면에 붙여넣기
+      </div>
+      <div class="link-btn" onclick="openGroq()">🌐 console.groq.com 열기</div>
+    </div>
+    <div style="color:rgba(255,255,255,.3);font-size:11px;text-align:center;line-height:1.8">
+      키는 <b style="color:rgba(255,255,255,.5)">gsk_</b> 로 시작합니다.<br>
+      발급 후 ARIA를 실행하면 첫 화면에서 바로 입력할 수 있습니다.
+    </div>
+  </div>
+  <div class="footer">
+    <button class="btn btn-ghost" onclick="goPage(5)">나중에 입력</button>
+    <button class="btn btn-primary" onclick="goPage(5)">키 발급 완료 →</button>
+  </div>
+</div>
+
+<!-- ══════════════════════ PAGE 5: Done ══════════════════════ -->
+<div id="p5" class="page">
+  <div class="hdr">
+    <div class="hdr-icon">🎉</div>
+    <h2>설치 완료!</h2>
+    <p>ARIA가 성공적으로 설치되었습니다.</p>
+  </div>
+  <div class="stepbar">
+    <div class="step s-done"><div class="step-num">✓</div>시작</div>
+    <div class="step s-done"><div class="step-num">✓</div>환경</div>
+    <div class="step s-done"><div class="step-num">✓</div>설치</div>
+    <div class="step s-done"><div class="step-num">✓</div>API키</div>
+    <div class="step s-done"><div class="step-num">✓</div>완료</div>
+  </div>
+  <div class="content center">
+    <div class="big-icon">🎉</div>
+    <div class="done-title">설치 완료!</div>
+    <div class="done-desc">
+      바탕화면의 <b style="color:#fff">ARIA AI</b> 아이콘으로 실행하세요.<br>
+      처음 실행 시 API 키 입력 화면이 나타납니다.<br>
+      발급받은 키를 붙여넣고 바로 사용하세요!
+    </div>
+    <button class="launch-btn" onclick="launchAria()">🤖 ARIA 지금 실행하기</button>
+  </div>
+  <div class="footer">
+    <button class="btn btn-ghost" onclick="window.close()">닫기</button>
+    <button class="btn btn-primary" onclick="launchAria(); setTimeout(function(){window.close();}, 1500)">실행 후 마법사 종료</button>
+  </div>
+</div>
+
+<script>
+var shell        = new ActiveXObject("WScript.Shell");
+var fso          = new ActiveXObject("Scripting.FileSystemObject");
+var INSTALL_DIR  = "C:\\ARIA";
+var SOURCE_DIR   = "";
+var TEMP_DIR     = "C:\\Windows\\Temp";
+var NODE_CMD     = "node"; // may be overridden to full path after install
+
+// ── Init ──────────────────────────────────────────────────────────
+function htaInit() {
+    window.resizeTo(520, 574);
+    window.moveTo(Math.round((screen.width - 520) / 2), Math.round((screen.height - 574) / 2));
+    // Determine SOURCE_DIR from this HTA's location
+    try {
+        var href = unescape(location.href).replace("file:///", "").replace(/\//g, "\\");
+        var dir  = href.substring(0, href.lastIndexOf("\\"));
+        SOURCE_DIR = dir + "\\source";
+    } catch(e) {
+        SOURCE_DIR = ".\\source";
+    }
+
+    // USB 드라이브 문자 달라져도 정상 동작하도록 바로가기 자동 갱신
+    try {
+        var h2      = unescape(location.href).replace("file:///", "").replace(/\//g, "\\");
+        var htaFull = h2.substring(0, h2.indexOf("?") >= 0 ? h2.indexOf("?") : h2.length);
+        var htaDir  = htaFull.substring(0, htaFull.lastIndexOf("\\"));
+        var usbRoot = htaDir.substring(0, htaDir.lastIndexOf("\\"));
+        var lnkFull = usbRoot + "\\ARIA 설치하기.lnk";
+        var icoFull = htaDir  + "\\icon.ico";
+        var mshta   = shell.ExpandEnvironmentStrings("%SystemRoot%") + "\\System32\\mshta.exe";
+        var sc = shell.CreateShortcut(lnkFull);
+        sc.TargetPath       = mshta;
+        sc.Arguments        = '"' + htaFull + '"';
+        sc.WorkingDirectory = htaDir;
+        sc.IconLocation     = icoFull + ", 0";
+        sc.Description      = "ARIA AI 설치 마법사";
+        sc.Save();
+    } catch(e) {}
+}
+
+// ── Page navigation ───────────────────────────────────────────────
+function goPage(n) {
+    for (var i = 1; i <= 5; i++) {
+        var el = document.getElementById("p" + i);
+        el.className = (i === n) ? "page active" : "page";
+    }
+    if (n === 2) { setTimeout(runNodeCheck, 400); }
+    if (n === 3) { setTimeout(runInstall,   400); }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+function addLog(id, msg) {
+    var b = document.getElementById(id);
+    b.innerHTML += msg + "<br>";
+    b.scrollTop = b.scrollHeight;
+}
+function setRow(id, icon, text, cls) {
+    document.getElementById(id).innerHTML =
+        '<span class="srow-icon">' + icon + '</span>' +
+        '<span class="' + (cls || "") + '">' + text + '</span>';
+}
+function setProgress(id, pct, animate) {
+    var b = document.getElementById(id);
+    b.className = animate ? "prog-bar anim" : "prog-bar";
+    if (!animate) b.style.width = pct + "%";
+}
+function runCmd(cmd) {
+    return shell.Run('cmd /c ' + cmd, 0, true);
+}
+function fileExists(p) { try { return fso.FileExists(p); } catch(e) { return false; } }
+function readFile(p) {
+    try {
+        var f = fso.OpenTextFile(p, 1); var s = f.ReadAll(); f.Close(); return s;
+    } catch(e) { return ""; }
+}
+
+// ── PAGE 2: Node.js check & install ──────────────────────────────
+function runNodeCheck() {
+    addLog("log2", "Node.js 확인 중...");
+    var statusFile = TEMP_DIR + "\\aria_node_ver.txt";
+    runCmd('"node --version > ' + statusFile + ' 2>&1"');
+    var ver = readFile(statusFile);
+    try { fso.DeleteFile(statusFile); } catch(e) {}
+
+    if (ver.indexOf("v") > -1) {
+        // Node.js already installed
+        setRow("row-node", "✅", "Node.js " + ver.replace(/\r?\n/g,"") + " 확인됨", "c-ok");
+        setProgress("prog2", 100, false);
+        addLog("log2", "Node.js 이미 설치되어 있습니다.");
+        document.getElementById("btn2").disabled = false;
+    } else {
+        // USB 번들 MSI 우선 사용, 없으면 인터넷 다운로드
+        var _h = unescape(location.href).replace("file:///","").replace(/\//g,"\\");
+        var _htaDir = _h.substring(0, _h.lastIndexOf("\\"));
+        var bundledMsi = _htaDir + "\\nodejs\\node-v20.18.3-x64.msi";
+        if (fileExists(bundledMsi)) {
+            setRow("row-node", "⚙️", "Node.js 설치 중 (USB 번들)...", "c-run");
+            addLog("log2", "USB 내장 Node.js로 설치합니다...");
+            setProgress("prog2", 50, false);
+            runCmd('"msiexec /i "' + bundledMsi + '" /passive /norestart"');
+            NODE_CMD = '"C:\\Program Files\\nodejs\\node.exe"';
+            setRow("row-node", "✅", "Node.js 설치 완료", "c-ok");
+            setProgress("prog2", 100, false);
+            addLog("log2", "Node.js 설치 완료.");
+            document.getElementById("btn2").disabled = false;
+        } else {
+            // 폴백: 인터넷 다운로드
+            setRow("row-node", "⬇️", "Node.js 다운로드 중 (약 30MB)...", "c-run");
+            addLog("log2", "USB에 번들 없음 — 인터넷에서 다운로드합니다...");
+            setProgress("prog2", 0, true);
+
+            var dlStatus = TEMP_DIR + "\\aria_nodedl_status.txt";
+            try { fso.DeleteFile(dlStatus); } catch(e) {}
+
+            var ps = 'powershell -ExecutionPolicy Bypass -Command "' +
+                'try {' +
+                  '$p=\'https://nodejs.org/dist/v20.18.3/node-v20.18.3-x64.msi\';' +
+                  '$o=\'' + TEMP_DIR + '\\\\nodejs_aria.msi\';' +
+                  'Invoke-WebRequest -Uri $p -OutFile $o -UseBasicParsing;' +
+                  '\'success\' | Out-File \'' + dlStatus + '\'' +
+                '} catch {' +
+                  '\'error:\'+$_ | Out-File \'' + dlStatus + '\'' +
+                '}"';
+            shell.Run(ps, 0, false);
+            setTimeout(function(){ pollNodeDL(dlStatus); }, 2000);
+        }
+    }
+}
+
+function pollNodeDL(dlStatus) {
+    if (!fileExists(dlStatus)) {
+        setTimeout(function(){ pollNodeDL(dlStatus); }, 2000);
+        return;
+    }
+    var result = readFile(dlStatus);
+    try { fso.DeleteFile(dlStatus); } catch(e) {}
+
+    if (result.indexOf("success") > -1) {
+        setRow("row-node", "⚙️", "Node.js 설치 중...", "c-run");
+        addLog("log2", "다운로드 완료. 설치 중...");
+        runCmd('"msiexec /i ' + TEMP_DIR + '\\nodejs_aria.msi /passive /norestart"');
+        try { fso.DeleteFile(TEMP_DIR + "\\nodejs_aria.msi"); } catch(e) {}
+
+        NODE_CMD = '"C:\\Program Files\\nodejs\\node.exe"';
+        setRow("row-node", "✅", "Node.js 설치 완료", "c-ok");
+        setProgress("prog2", 100, false);
+        addLog("log2", "Node.js 설치 완료.");
+        document.getElementById("btn2").disabled = false;
+    } else {
+        setRow("row-node", "❌", "다운로드 실패 — 인터넷 연결 확인 후 재시도", "c-err");
+        addLog("log2", "오류: " + result.substring(0, 120));
+    }
+}
+
+// ── PAGE 3: Copy files + npm install + shortcuts ──────────────────
+function runInstall() {
+    addLog("log3", "설치 시작...");
+
+    // ① Copy source files
+    setRow("row-copy", "⚙️", "파일 복사 중...", "c-run");
+    addLog("log3", "파일 복사: " + INSTALL_DIR);
+    setProgress("prog3", 10, false);
+
+    if (!fso.FolderExists(INSTALL_DIR)) {
+        try { fso.CreateFolder(INSTALL_DIR); } catch(e) {}
+    }
+    runCmd('xcopy /E /I /Y /Q "' + SOURCE_DIR + '" "' + INSTALL_DIR + '"');
+
+    if (!fso.FolderExists(INSTALL_DIR) || !fileExists(INSTALL_DIR + "\\main.js")) {
+        setRow("row-copy", "❌", "파일 복사 실패 — 관리자 권한으로 재실행", "c-err");
+        addLog("log3", "오류: 파일 복사 실패.");
+        return;
+    }
+    setRow("row-copy", "✅", "파일 복사 완료", "c-ok");
+    addLog("log3", "파일 복사 완료.");
+    setProgress("prog3", 30, false);
+
+    // ② Electron (check offline bundle first)
+    if (fileExists(INSTALL_DIR + "\\node_modules\\electron\\dist\\electron.exe")) {
+        setRow("row-electron", "✅", "Electron 준비됨 (오프라인 번들)", "c-ok");
+        addLog("log3", "오프라인 번들 사용.");
+        setProgress("prog3", 75, false);
+        doShortcut();
+    } else {
+        setRow("row-electron", "⬇️", "Electron 다운로드 중 (약 200MB, 2-5분)...", "c-run");
+        addLog("log3", "Electron 다운로드 중 — 인터넷 필요, 잠시 기다려 주세요...");
+        setProgress("prog3", 0, true);
+
+        var npmExe = "npm";
+        if (NODE_CMD !== "node") npmExe = '"C:\\Program Files\\nodejs\\npm.cmd"';
+
+        // npm install async
+        shell.Run(
+            'cmd /c "cd /d \\"' + INSTALL_DIR + '\\" && ' + npmExe +
+            ' install > \\"' + INSTALL_DIR + '\\npm_log.txt\\" 2>&1"',
+            0, false
+        );
+        setTimeout(pollElectron, 4000);
+    }
+}
+
+function pollElectron() {
+    if (fileExists(INSTALL_DIR + "\\node_modules\\electron\\dist\\electron.exe")) {
+        setProgress("prog3", 75, false);
+        setRow("row-electron", "✅", "Electron 설치 완료", "c-ok");
+        addLog("log3", "Electron 설치 완료.");
+        doShortcut();
+        return;
+    }
+    // Check for npm error
+    if (fileExists(INSTALL_DIR + "\\npm_log.txt")) {
+        var logContent = readFile(INSTALL_DIR + "\\npm_log.txt");
+        if (logContent.indexOf("ENOTFOUND") > -1 || logContent.indexOf("ECONNREFUSED") > -1) {
+            setRow("row-electron", "❌", "다운로드 실패 — 인터넷 연결 확인", "c-err");
+            addLog("log3", "오류: 인터넷 연결을 확인하세요.");
+            return;
+        }
+    }
+    setTimeout(pollElectron, 4000);
+}
+
+function doShortcut() {
+    setRow("row-shortcut", "⚙️", "바로가기 생성 중...", "c-run");
+    addLog("log3", "아이콘 및 바로가기 생성 중...");
+
+    // Generate icon
+    runCmd('"' + NODE_CMD + '" "' + INSTALL_DIR + '\\create-icon.js"');
+
+    var electronExe = INSTALL_DIR + "\\node_modules\\electron\\dist\\electron.exe";
+    var desktop = shell.SpecialFolders("Desktop");
+    var programs = shell.SpecialFolders("Programs") + "\\ARIA";
+
+    // Desktop shortcut
+    var ps1 = 'powershell -ExecutionPolicy Bypass -Command "' +
+        '$s=(New-Object -COM WScript.Shell).CreateShortcut(\'' + desktop + '\\ARIA AI.lnk\');' +
+        '$s.TargetPath=\'' + electronExe + '\';' +
+        '$s.Arguments=\'.\';' +
+        '$s.WorkingDirectory=\'' + INSTALL_DIR + '\';' +
+        '$s.Description=\'ARIA AI 업무 어시스턴트\';$s.Save()"';
+    shell.Run(ps1, 0, true);
+
+    // Start menu - ARIA 실행 바로가기
+    if (!fso.FolderExists(programs)) { try { fso.CreateFolder(programs); } catch(e) {} }
+    var ps2 = 'powershell -ExecutionPolicy Bypass -Command "' +
+        '$s=(New-Object -COM WScript.Shell).CreateShortcut(\'' + programs + '\\ARIA AI.lnk\');' +
+        '$s.TargetPath=\'' + electronExe + '\';' +
+        '$s.Arguments=\'.\';' +
+        '$s.WorkingDirectory=\'' + INSTALL_DIR + '\';' +
+        '$s.Description=\'ARIA AI 업무 어시스턴트\';$s.Save()"';
+    shell.Run(ps2, 0, true);
+
+    // Start menu - ARIA 제거 바로가기
+    var ps3 = 'powershell -ExecutionPolicy Bypass -Command "' +
+        '$s=(New-Object -COM WScript.Shell).CreateShortcut(\'' + programs + '\\ARIA 제거.lnk\');' +
+        '$s.TargetPath=\'' + INSTALL_DIR + '\\uninstall.bat\';' +
+        '$s.WorkingDirectory=\'' + INSTALL_DIR + '\';' +
+        '$s.Description=\'ARIA AI 업무 어시스턴트 제거\';$s.Save()"';
+    shell.Run(ps3, 0, true);
+
+    // Windows 앱 목록 등록 (설정 → 앱)
+    var regBase = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ARIA';
+    shell.Run('reg add "' + regBase + '" /v DisplayName      /t REG_SZ /d "ARIA AI 업무 어시스턴트" /f', 0, true);
+    shell.Run('reg add "' + regBase + '" /v DisplayVersion   /t REG_SZ /d "1.0.0" /f', 0, true);
+    shell.Run('reg add "' + regBase + '" /v Publisher        /t REG_SZ /d "ARIA" /f', 0, true);
+    shell.Run('reg add "' + regBase + '" /v InstallLocation  /t REG_SZ /d "' + INSTALL_DIR + '" /f', 0, true);
+    shell.Run('reg add "' + regBase + '" /v UninstallString  /t REG_SZ /d "' + INSTALL_DIR + '\\uninstall.bat" /f', 0, true);
+    shell.Run('reg add "' + regBase + '" /v NoModify         /t REG_DWORD /d 1 /f', 0, true);
+    shell.Run('reg add "' + regBase + '" /v NoRepair         /t REG_DWORD /d 1 /f', 0, true);
+
+    setRow("row-shortcut", "✅", "바로가기 생성 완료", "c-ok");
+    setProgress("prog3", 100, false);
+    addLog("log3", "✅ 모든 설치가 완료되었습니다!");
+    document.getElementById("btn3").disabled = false;
+}
+
+// ── PAGE 4 & 5 ────────────────────────────────────────────────────
+function openGroq() {
+    shell.Run("https://console.groq.com");
+}
+function launchAria() {
+    var exe = INSTALL_DIR + "\\node_modules\\electron\\dist\\electron.exe";
+    shell.Run('"' + exe + '" "' + INSTALL_DIR + '"');
+}
+</script>
+</body>
+</html>
