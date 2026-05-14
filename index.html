@@ -45,6 +45,30 @@ html, body {
 }
 #chat-panel.hidden { display:none; }
 
+/* ── RESIZE GRIP ── */
+#resize-grip {
+    position:absolute;
+    left:0;
+    top:0;
+    width:24px;
+    height:24px;
+    z-index:40;
+    cursor:nwse-resize;
+    -webkit-app-region:no-drag;
+}
+#resize-grip::before {
+    content:'';
+    position:absolute;
+    left:6px;
+    top:6px;
+    width:11px;
+    height:11px;
+    border-left:2px solid rgba(0,180,216,.45);
+    border-top:2px solid rgba(0,180,216,.45);
+    border-radius:4px 0 0 0;
+}
+#resize-grip:hover::before { border-color:rgba(0,180,216,.9); }
+
 /* ── HEADER ── */
 #chat-header {
     background:linear-gradient(135deg,#08081e,#12124a);
@@ -596,6 +620,7 @@ textarea.s-input { resize:none; line-height:1.5; }
 
     <!-- CHAT PANEL -->
     <div id="chat-panel" class="hidden">
+        <div id="resize-grip" title="크기 조절"></div>
 
         <!-- HEADER (draggable) -->
         <div id="chat-header">
@@ -1563,11 +1588,53 @@ function grow(el) {
     el.style.height = Math.min(el.scrollHeight, 90) + 'px';
 }
 function focusInput() {
-    setTimeout(() => document.getElementById('msg-input').focus(), 50);
+    setTimeout(() => {
+        const el = document.getElementById('msg-input');
+        el.focus();
+        el.setSelectionRange(0, 0);
+    }, 50);
 }
+document.getElementById('msg-input').addEventListener('click', function() {
+    this.setSelectionRange(0, 0);
+});
 function esc(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+
+/* ── WINDOW RESIZE ── */
+(function() {
+    const grip = document.getElementById('resize-grip');
+    if (!grip) return;
+    let resizing = false;
+
+    grip.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        resizing = true;
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        window.aria.resizeStart(e.screenX, e.screenY);
+        e.preventDefault();
+        e.stopPropagation();
+    });
+    grip.addEventListener('dragstart',   (e) => e.preventDefault());
+    grip.addEventListener('selectstart', (e) => e.preventDefault());
+
+    window.addEventListener('mousemove', (e) => {
+        if (!resizing) return;
+        window.aria.resizeMove(e.screenX, e.screenY);
+        e.preventDefault();
+    });
+    window.addEventListener('mouseup', (e) => {
+        if (!resizing) return;
+        resizing = false;
+        window.aria.resizeEnd();
+        e.preventDefault();
+    });
+    window.addEventListener('blur', () => {
+        if (!resizing) return;
+        resizing = false;
+        window.aria.resizeEnd();
+    });
+})();
 
 /* ── DRAG & CLICK ── */
 (function() {

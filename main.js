@@ -46,9 +46,12 @@ IT 기업에서 일하는 직원들의 전반적인 업무를 도와주는 친�
 let win;
 let tray;
 
-const MARGIN    = 16;
-const EXPANDED  = { w: 380, h: 560 };
-const COLLAPSED = { w: 92,  h: 120 };
+const MARGIN       = 16;
+const EXPANDED     = { w: 380, h: 560 };
+const COLLAPSED    = { w: 92,  h: 120 };
+const MIN_EXPANDED = { w: 320, h: 440 };
+
+function clamp(n, min, max) { return Math.max(min, Math.min(n, max)); }
 
 app.setPath('userData', path.join(__dirname, 'userdata'));
 
@@ -87,6 +90,7 @@ let isExpanded     = false;
 let isDragging     = false;
 let resizingByCode = false;
 let lockedSize     = null;
+let resizeSession  = null;
 
 function lockWindowSize(w, h) {
     if (!win || win.isDestroyed()) return;
@@ -136,6 +140,42 @@ function saveCurrentExpandedSize() {
     if (!win || win.isDestroyed() || !isExpanded) return;
     const b = win.getBounds();
     saveWindowState(b.width, b.height);
+}
+function lockCurrentWindowSize() {
+    if (!win || win.isDestroyed()) return;
+    const b = win.getBounds();
+    lockWindowSize(b.width, b.height);
+}
+function startCustomResize(payload = {}) {
+    if (!win || win.isDestroyed() || !isExpanded) return;
+    const cursor = screen.getCursorScreenPoint();
+    resizeSession = {
+        sx: Number.isFinite(payload.sx) ? payload.sx : cursor.x,
+        sy: Number.isFinite(payload.sy) ? payload.sy : cursor.y,
+        bounds: win.getBounds(),
+    };
+    lockCurrentWindowSize();
+}
+function moveCustomResize(payload = {}) {
+    if (!win || win.isDestroyed() || !isExpanded || !resizeSession) return;
+    const cursor = screen.getCursorScreenPoint();
+    const px = Number.isFinite(payload.sx) ? payload.sx : cursor.x;
+    const py = Number.isFinite(payload.sy) ? payload.sy : cursor.y;
+    const dx = px - resizeSession.sx;
+    const dy = py - resizeSession.sy;
+    const base = resizeSession.bounds;
+    const right  = base.x + base.width;
+    const bottom = base.y + base.height;
+    const { x: ax, y: ay } = screen.getDisplayNearestPoint({ x: px, y: py }).workArea;
+    const newX = clamp(base.x + dx, ax, right  - MIN_EXPANDED.w);
+    const newY = clamp(base.y + dy, ay, bottom - MIN_EXPANDED.h);
+    setLockedBounds({ x: newX, y: newY, width: right - newX, height: bottom - newY });
+}
+function endCustomResize() {
+    if (!resizeSession) return;
+    resizeSession = null;
+    saveCurrentExpandedSize();
+    lockCurrentWindowSize();
 }
 
 function showWindow() {
@@ -269,6 +309,10 @@ ipcMain.on('release-mouse', () => {
 ipcMain.on('invalidate-window', () => {
     setTimeout(() => win.webContents.invalidate(), 30);
 });
+
+ipcMain.on('resize-window-start', (_, payload = {}) => startCustomResize(payload));
+ipcMain.on('resize-window-move',  (_, payload = {}) => moveCustomResize(payload));
+ipcMain.on('resize-window-end',   ()                => endCustomResize());
 
 ipcMain.handle('get-settings',  ()        => loadSettings());
 ipcMain.handle('save-settings', (_, data) => { saveSettings(data); return true; });
