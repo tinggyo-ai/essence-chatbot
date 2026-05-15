@@ -1,90 +1,111 @@
-// ARIA 아이콘 생성 스크립트 (16x16 PNG)
-// node create-icon.js 로 실행
-const fs = require('fs');
+// Essence 아이콘 생성 — 설치 시 자동 실행됨
+const fs   = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 
-// 최소 PNG: 16x16 파란색 로봇 아이콘 (base64)
-// PNG 헤더 + IHDR + IDAT (파란 배경 + 흰 점) + IEND
-const iconBase64 =
-  'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlz' +
-  'AAALEwAACxMBAJqcGAAAABZ0RVh0Q3JlYXRpb24gVGltZQAwNi8yMy8xNVgR2U8AAAAcdEVYdFNv' +
-  'ZnR3YXJlAEFkb2JlIEZpcmV3b3JrcyBDUzYGst3OAAAA5klEQVQ4jc2TvQrCMBSFv1YEBwcHQRcX' +
-  'dwVBcHBwcFEQd1EQdBEHwUGki4ODg4OgqKCDg4OD4OAq6uDg4OBQuqSHJCRN0h8oOOSSc+/5bm6S' +
-  'AxBCCPFfxBjz2fd9D0EURVEURVEUR0VRFMdxHMdBEARBkiRJsiSBEEII8V/knHPOOee89957773n' +
-  'nHPOOc4555xzzjkhhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQggh' +
-  'hBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghxB/xBuiZFJTaOwAA' +
-  'AABJRU5ErkJggg==';
-
-// 더 간단한 방법: 16x16 solid 파란색 PNG (직접 바이너리)
-function createBluePNG() {
-  // PNG 시그니처
-  const sig = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
-
-  // IHDR chunk: 16x16, 8bit RGB
-  const ihdrData = Buffer.alloc(13);
-  ihdrData.writeUInt32BE(16, 0); // width
-  ihdrData.writeUInt32BE(16, 4); // height
-  ihdrData[8] = 8;  // bit depth
-  ihdrData[9] = 2;  // color type: RGB
-  ihdrData[10] = 0; // compression
-  ihdrData[11] = 0; // filter
-  ihdrData[12] = 0; // interlace
-
-  const ihdr = makeChunk('IHDR', ihdrData);
-
-  // IDAT: 16x16 파란색 픽셀 (raw)
-  // 각 row: filter byte(0) + 16픽셀 × RGB(0,100,200)
-  const rawRows = [];
-  for (let y = 0; y < 16; y++) {
-    const row = Buffer.alloc(1 + 16 * 3);
-    row[0] = 0; // filter: none
-    for (let x = 0; x < 16; x++) {
-      const base = 1 + x * 3;
-      // 파란색 계열 (ARIA 테마 #00b4d8)
-      if (y < 2 || y > 13 || x < 2 || x > 13) {
-        row[base] = 0; row[base+1] = 100; row[base+2] = 140; // 테두리
-      } else {
-        row[base] = 0; row[base+1] = 180; row[base+2] = 216; // #00b4d8
-      }
-    }
-    rawRows.push(row);
-  }
-  const raw = Buffer.concat(rawRows);
-
-  const zlib = require('zlib');
-  const compressed = zlib.deflateSync(raw);
-  const idat = makeChunk('IDAT', compressed);
-
-  // IEND
-  const iend = makeChunk('IEND', Buffer.alloc(0));
-
-  return Buffer.concat([sig, ihdr, idat, iend]);
-}
-
-function makeChunk(type, data) {
-  const crc32 = require('zlib').crc32;
-  const len = Buffer.alloc(4);
-  len.writeUInt32BE(data.length, 0);
+function makePngChunk(type, data) {
   const typeBytes = Buffer.from(type, 'ascii');
-
-  // CRC32 over type + data
-  const crcInput = Buffer.concat([typeBytes, data]);
+  const crcInput  = Buffer.concat([typeBytes, data]);
   let crc = 0xFFFFFFFF;
-  for (const byte of crcInput) {
-    crc ^= byte;
-    for (let i = 0; i < 8; i++) {
-      crc = (crc & 1) ? (0xEDB88320 ^ (crc >>> 1)) : (crc >>> 1);
-    }
+  for (const b of crcInput) {
+    crc ^= b;
+    for (let i = 0; i < 8; i++) crc = (crc & 1) ? (0xEDB88320 ^ (crc >>> 1)) : (crc >>> 1);
   }
   crc ^= 0xFFFFFFFF;
-
-  const crcBuf = Buffer.alloc(4);
-  crcBuf.writeUInt32BE(crc >>> 0, 0);
-
+  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+  const crcBuf = Buffer.alloc(4); crcBuf.writeUInt32BE(crc >>> 0);
   return Buffer.concat([len, typeBytes, data, crcBuf]);
 }
 
-const iconPath = path.join(__dirname, 'icon.png');
-const png = createBluePNG();
-fs.writeFileSync(iconPath, png);
-console.log('아이콘 생성 완료:', iconPath, `(${png.length} bytes)`);
+function buildPng(size) {
+  const BG_R = 13, BG_G = 13, BG_B = 30;
+  const CN_R = 0,  CN_G = 180, CN_B = 216;
+  const cx = size / 2, cy = size / 2;
+  const r  = size / 2 - size * 0.04;
+  const borderW = Math.max(2, size * 0.06);
+
+  // Simple 5x7 "A" glyph
+  const glyph = [
+    [0,1,1,0,0],
+    [1,0,0,1,0],
+    [1,0,0,1,0],
+    [1,1,1,1,0],
+    [1,0,0,1,0],
+    [1,0,0,1,0],
+    [1,0,0,1,0],
+  ];
+  const fScale = size * 0.48 / 7;
+  const gW = Math.round(5 * fScale), gH = Math.round(7 * fScale);
+  const gX = Math.round((size - gW) / 2), gY = Math.round((size - gH) / 2) - Math.round(size * 0.04);
+
+  const rows = [];
+  for (let y = 0; y < size; y++) {
+    const row = Buffer.alloc(1 + size * 4);
+    row[0] = 0;
+    for (let x = 0; x < size; x++) {
+      const dx = x - cx + 0.5, dy = y - cy + 0.5;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const base = 1 + x * 4;
+      if (dist > r + 0.5) {
+        // transparent
+      } else if (dist > r - borderW) {
+        const alpha = dist > r - 0.5 ? Math.round(255 * (r + 0.5 - dist)) : 255;
+        row[base]=CN_R; row[base+1]=CN_G; row[base+2]=CN_B; row[base+3]=alpha;
+      } else {
+        row[base]=BG_R; row[base+1]=BG_G; row[base+2]=BG_B; row[base+3]=255;
+      }
+    }
+    // Draw "A" glyph
+    const ly = y - gY;
+    if (ly >= 0 && ly < gH) {
+      const glyphRow = glyph[Math.floor(ly / fScale)];
+      if (glyphRow) {
+        for (let gx = 0; gx < gW; gx++) {
+          if (!glyphRow[Math.floor(gx / fScale)]) continue;
+          const ix = gX + gx;
+          if (ix < 0 || ix >= size) continue;
+          const dx2 = ix - cx + 0.5, dy2 = y - cy + 0.5;
+          if (Math.sqrt(dx2*dx2+dy2*dy2) > r - borderW) continue;
+          const b2 = 1 + ix * 4;
+          row[b2]=CN_R; row[b2+1]=CN_G; row[b2+2]=CN_B; row[b2+3]=255;
+        }
+      }
+    }
+    rows.push(row);
+  }
+
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4);
+  ihdr[8]=8; ihdr[9]=6; // RGBA
+  const idat = zlib.deflateSync(Buffer.concat(rows));
+  return Buffer.concat([
+    Buffer.from([0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A]),
+    makePngChunk('IHDR', ihdr),
+    makePngChunk('IDAT', idat),
+    makePngChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+function buildIco(sizes) {
+  const pngs = sizes.map(s => buildPng(s));
+  const dirs = [];
+  let offset = 6 + 16 * pngs.length;
+  for (let i = 0; i < pngs.length; i++) {
+    const dim = sizes[i] === 256 ? 0 : sizes[i];
+    const d = Buffer.alloc(16);
+    d[0]=dim; d[1]=dim; d.writeUInt16LE(1,4); d.writeUInt16LE(32,6);
+    d.writeUInt32LE(pngs[i].length, 8); d.writeUInt32LE(offset, 12);
+    dirs.push(d); offset += pngs[i].length;
+  }
+  const hdr = Buffer.alloc(6);
+  hdr.writeUInt16LE(1, 2); hdr.writeUInt16LE(pngs.length, 4);
+  return Buffer.concat([hdr, ...dirs, ...pngs]);
+}
+
+const dir     = __dirname;
+const png32   = buildPng(32);
+const icoData = buildIco([256, 48, 32, 16]);
+
+fs.writeFileSync(path.join(dir, 'icon.png'), png32);
+fs.writeFileSync(path.join(dir, 'icon.ico'), icoData);
+console.log('아이콘 생성 완료 — icon.png:', png32.length, 'bytes / icon.ico:', icoData.length, 'bytes');

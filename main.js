@@ -78,12 +78,29 @@ function windowStatePath() {
 }
 function loadWindowState() {
     try { return JSON.parse(fs.readFileSync(windowStatePath(), 'utf8')); }
-    catch { return { w: EXPANDED.w, h: EXPANDED.h }; }
+    catch { return { w: EXPANDED.w, h: EXPANDED.h, x: null, y: null }; }
 }
 function saveWindowState(w, h) {
     const dir = app.getPath('userData');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(windowStatePath(), JSON.stringify({ w, h }));
+    try {
+        const prev = JSON.parse(fs.readFileSync(windowStatePath(), 'utf8'));
+        fs.writeFileSync(windowStatePath(), JSON.stringify({ w, h, x: prev.x ?? null, y: prev.y ?? null }));
+    } catch {
+        fs.writeFileSync(windowStatePath(), JSON.stringify({ w, h, x: null, y: null }));
+    }
+}
+function saveCollapsedPos() {
+    if (!win || win.isDestroyed()) return;
+    const b = win.getBounds();
+    try {
+        const state = JSON.parse(fs.readFileSync(windowStatePath(), 'utf8'));
+        fs.writeFileSync(windowStatePath(), JSON.stringify({ ...state, x: b.x, y: b.y }));
+    } catch {
+        const dir = app.getPath('userData');
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(windowStatePath(), JSON.stringify({ w: EXPANDED.w, h: EXPANDED.h, x: b.x, y: b.y }));
+    }
 }
 
 let isExpanded     = false;
@@ -201,7 +218,8 @@ function setupTray() {
 }
 
 app.whenReady().then(() => {
-    const p = getPos(COLLAPSED.w, COLLAPSED.h);
+    const ws = loadWindowState();
+    const p  = (ws.x != null && ws.y != null) ? { x: ws.x, y: ws.y } : getPos(COLLAPSED.w, COLLAPSED.h);
 
     win = new BrowserWindow({
         width : COLLAPSED.w,
@@ -295,6 +313,7 @@ ipcMain.on('drag-end', (_, payload = {}) => {
     isDragging = false;
     dragOffset = null;
     if (!isExpanded) {
+        saveCollapsedPos();
         if (payload.overRobot) win.setIgnoreMouseEvents(false);
         else repaintCollapsedWindow();
     }
@@ -496,7 +515,7 @@ ipcMain.on('uninstall', () => {
 
 ipcMain.on('quit', () => app.quit());
 
-app.on('before-quit', () => saveCurrentExpandedSize());
+app.on('before-quit', () => { saveCurrentExpandedSize(); if (!isExpanded) saveCollapsedPos(); });
 app.on('window-all-closed', () => {});
 
 process.on('uncaughtException', (err) => {
