@@ -244,6 +244,25 @@ textarea.s-input { resize:none; line-height:1.5; }
 
 .s-divider { border:none; border-top:1px solid rgba(255,255,255,.07); margin:0; }
 
+/* ── 토글 스위치 ── */
+.toggle-row { display:flex; align-items:center; justify-content:space-between; padding:4px 0; }
+.toggle-label { display:flex; flex-direction:column; gap:3px; }
+.toggle-label span { font-size:13px; color:rgba(255,255,255,.85); }
+.toggle-label small { font-size:11px; color:rgba(255,255,255,.3); }
+.toggle-switch { position:relative; width:40px; height:22px; flex-shrink:0; }
+.toggle-switch input { opacity:0; width:0; height:0; }
+.toggle-slider {
+    position:absolute; inset:0; background:rgba(255,255,255,.15);
+    border-radius:22px; cursor:pointer; transition:.25s;
+}
+.toggle-slider::before {
+    content:''; position:absolute;
+    width:16px; height:16px; left:3px; top:3px;
+    background:#fff; border-radius:50%; transition:.25s;
+}
+.toggle-switch input:checked + .toggle-slider { background:#00b4d8; }
+.toggle-switch input:checked + .toggle-slider::before { transform:translateX(18px); }
+
 /* ── 캐릭터 선택 그리드 ── */
 .char-grid {
     display:grid; grid-template-columns:repeat(3, 1fr); gap:8px;
@@ -767,6 +786,23 @@ textarea.s-input { resize:none; line-height:1.5; }
 
                 <hr class="s-divider"/>
 
+                <!-- 시스템 -->
+                <div class="s-section">
+                    <div class="s-label">시스템</div>
+                    <div class="toggle-row">
+                        <div class="toggle-label">
+                            <span>컴퓨터 켜지면 자동 실행</span>
+                            <small>Windows 시작 시 자동으로 실행됩니다</small>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="auto-launch-toggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <hr class="s-divider"/>
+
                 <!-- 위험 구역 -->
                 <div class="s-section">
                     <div class="s-label">대화 관리</div>
@@ -1112,6 +1148,15 @@ function closeChat() {
     window.aria.collapse();
 }
 
+/* ── 자동 실행 토글 ── */
+async function initAutoLaunchToggle() {
+    const on = await window.aria.getAutoLaunch();
+    document.getElementById('auto-launch-toggle').checked = on;
+}
+document.getElementById('auto-launch-toggle').addEventListener('change', async function() {
+    await window.aria.setAutoLaunch(this.checked);
+});
+
 /* ── 설정 패널 열기/닫기 ── */
 function openSettings() {
     // 현재 값 채워넣기
@@ -1120,6 +1165,7 @@ function openSettings() {
     document.getElementById('s-prompt').value  = customPrompt || '';
     updateModelRadio();
     updateCharGrid();
+    initAutoLaunchToggle();
     document.getElementById('settings-panel').classList.remove('hidden');
 }
 

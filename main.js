@@ -317,6 +317,14 @@ ipcMain.on('resize-window-end',   ()                => endCustomResize());
 ipcMain.handle('get-settings',  ()        => loadSettings());
 ipcMain.handle('save-settings', (_, data) => { saveSettings(data); return true; });
 
+ipcMain.handle('get-auto-launch', () => {
+    return app.getLoginItemSettings().openAtLogin;
+});
+ipcMain.handle('set-auto-launch', (_, val) => {
+    app.setLoginItemSettings({ openAtLogin: val, path: process.execPath, args: [__dirname] });
+    return true;
+});
+
 // Groq API 스트리밍
 ipcMain.on('chat-stream', async (_, { messages, model, apiKey, image }) => {
     try {

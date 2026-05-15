@@ -24,6 +24,8 @@ contextBridge.exposeInMainWorld('aria', {
     deleteHistory   : (title)     => ipcRenderer.invoke('delete-history', title),
     summarizeChat   : (data)      => ipcRenderer.invoke('summarize-chat', data),
     uninstall       : ()     => ipcRenderer.send('uninstall'),
+    getAutoLaunch   : ()     => ipcRenderer.invoke('get-auto-launch'),
+    setAutoLaunch   : (val)  => ipcRenderer.invoke('set-auto-launch', val),
     transcribeAudio : (data) => ipcRenderer.invoke('transcribe-audio', data),
     mouseEnterRobot  : ()    => ipcRenderer.send('mouse-enter-robot'),
     mouseLeaveRobot  : ()    => ipcRenderer.send('mouse-leave-robot'),
