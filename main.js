@@ -18,6 +18,7 @@ if (typeof electronOrPath === 'string') {
 }
 
 const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell } = electronOrPath;
+const crypto = require('crypto');
 
 const GROQ_URL     = 'https://api.groq.com/openai/v1/chat/completions';
 const DEFAULT_MODEL  = 'llama-3.1-8b-instant';
@@ -101,6 +102,40 @@ function saveCollapsedPos() {
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(windowStatePath(), JSON.stringify({ w: EXPANDED.w, h: EXPANDED.h, x: b.x, y: b.y }));
     }
+}
+
+// ── License ───────────────────────────────────────────────────────────
+const LIC_SECRET = 'Ess-xK9mP2vL5nQ8jR3wB4dF6hY2026';
+const LIC_PREFIX = 'ESS';
+
+function licensePath() {
+    return path.join(app.getPath('userData'), 'license.json');
+}
+function validateLicenseKey(key) {
+    const parts = key.toUpperCase().trim().replace(/\s/g, '').split('-');
+    if (parts.length !== 4) return false;
+    const [prefix, serial, h1, h2] = parts;
+    if (prefix !== LIC_PREFIX) return false;
+    if (!/^\d{4}$/.test(serial)) return false;
+    const n = parseInt(serial, 10);
+    if (n < 1 || n > 1000) return false;
+    const expected = crypto.createHmac('sha256', LIC_SECRET)
+        .update(`${prefix}-${serial}`)
+        .digest('hex').toUpperCase().slice(0, 8);
+    return (h1 + h2) === expected;
+}
+function isLicenseActivated() {
+    try {
+        const data = JSON.parse(fs.readFileSync(licensePath(), 'utf8'));
+        return data.activated === true && validateLicenseKey(data.key);
+    } catch { return false; }
+}
+function saveLicense(key) {
+    const dir = app.getPath('userData');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(licensePath(), JSON.stringify({
+        activated: true, key, date: new Date().toISOString(),
+    }));
 }
 
 let isExpanded     = false;
@@ -217,7 +252,7 @@ function setupTray() {
     tray.on('click', () => showWindow());
 }
 
-app.whenReady().then(() => {
+function createMainWindow() {
     const ws = loadWindowState();
     const p  = (ws.x != null && ws.y != null) ? { x: ws.x, y: ws.y } : getPos(COLLAPSED.w, COLLAPSED.h);
 
@@ -241,10 +276,7 @@ app.whenReady().then(() => {
         },
     });
 
-    // 'floating' 레벨: 일반 앱 위에 유지하되 IME/시스템 UI 창은 Essence 위로 렌더링 허용
     win.setAlwaysOnTop(true, 'floating');
-
-    // 기본 상태: 창 전체를 passthrough → 로봇 영역 밖 클릭 시 포커스 이벤트 차단 → 흰 박스 방지
     win.setIgnoreMouseEvents(true, { forward: true });
 
     win.setTitle('');
@@ -260,6 +292,39 @@ app.whenReady().then(() => {
     win.on('resize', () => enforceLockedSize());
 
     setupTray();
+}
+
+function createLicenseWindow() {
+    const licWin = new BrowserWindow({
+        width: 440,
+        height: 310,
+        resizable: false,
+        center: true,
+        frame: true,
+        title: 'Essence 라이센스 활성화',
+        webPreferences: { nodeIntegration: true, contextIsolation: false },
+    });
+    licWin.setMenuBarVisibility(false);
+    licWin.loadFile('license.html');
+
+    ipcMain.handleOnce('validate-license', (_, key) => {
+        const valid = validateLicenseKey(key);
+        if (valid) saveLicense(key);
+        return { valid };
+    });
+    ipcMain.once('license-activated', () => {
+        licWin.close();
+        createMainWindow();
+    });
+    licWin.on('closed', () => { if (!win) app.quit(); });
+}
+
+app.whenReady().then(() => {
+    if (isLicenseActivated()) {
+        createMainWindow();
+    } else {
+        createLicenseWindow();
+    }
 });
 
 ipcMain.on('expand', () => {
