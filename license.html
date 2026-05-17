@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; connect-src 'none'; frame-src 'none';">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -59,25 +60,18 @@ button:active { opacity: .7; }
 <div class="logo">✨ Essence</div>
 <div class="sub">AI 업무 어시스턴트 — 라이센스 활성화</div>
 <div class="label">라이센스 키</div>
-<input id="key" type="text" placeholder="ESS-0000-XXXX-XXXX" maxlength="19" spellcheck="false" autocomplete="off">
+<input id="key" type="text" placeholder="ESS-0000.xxxxx" maxlength="110" spellcheck="false" autocomplete="off">
 <button onclick="activate()">활성화</button>
 <div class="msg" id="msg"></div>
 
 <script>
-const { ipcRenderer } = require('electron');
 const input = document.getElementById('key');
 const msg   = document.getElementById('msg');
 
 input.addEventListener('input', () => {
-    let raw = input.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const groups = [3, 4, 4, 4];
-    let out = '', pos = 0;
-    for (let i = 0; i < groups.length && pos < raw.length; i++) {
-        if (i > 0) out += '-';
-        out += raw.slice(pos, pos + groups[i]);
-        pos += groups[i];
-    }
-    input.value = out;
+    let raw = input.value.replace(/\s/g, '');
+    if (/^ess/i.test(raw)) raw = 'ESS' + raw.slice(3);
+    input.value = raw;
 });
 
 input.addEventListener('keydown', e => { if (e.key === 'Enter') activate(); });
@@ -87,12 +81,12 @@ function activate() {
     msg.className = 'msg';
     msg.textContent = '';
     if (!key) { msg.className = 'msg err'; msg.textContent = '라이센스 키를 입력해 주세요.'; return; }
-    ipcRenderer.invoke('validate-license', key).then(r => {
+    window.licenseApi.validate(key).then(r => {
         if (r.valid) {
             msg.className = 'msg ok';
             msg.textContent = '✓ 활성화 완료! Essence를 시작합니다...';
             input.disabled = true;
-            setTimeout(() => ipcRenderer.send('license-activated'), 1200);
+            setTimeout(() => window.licenseApi.activate(), 1200);
         } else {
             msg.className = 'msg err';
             msg.textContent = '올바르지 않은 라이센스 키입니다.';

@@ -510,6 +510,7 @@ function runInstall() {
         try { fso.CreateFolder(INSTALL_DIR); } catch(e) {}
     }
     runCmd('xcopy /E /I /Y /Q "' + SOURCE_DIR + '" "' + INSTALL_DIR + '"');
+    runCmd('icacls "' + INSTALL_DIR + '" /inheritance:r /grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-545:(OI)(CI)RX"');
 
     if (!fso.FolderExists(INSTALL_DIR) || !fileExists(INSTALL_DIR + "\\main.js")) {
         setRow("row-copy", "❌", "파일 복사 실패 — 관리자 권한으로 재실행", "c-err");

@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; connect-src 'none'; frame-src 'none';">
 <title id="bot-window-title"></title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -1268,7 +1269,7 @@ async function doSaveHistory() {
         const date    = new Date().toLocaleDateString('ko-KR');
         const content = `# ${title}\n\n> 저장일: ${date}\n\n${summary}`;
         await window.aria.saveHistory({ title, content });
-        body.innerHTML   = `<div style="color:#4ade80;font-size:12px;text-align:center;padding:20px 0;">✅ "${title}" 저장 완료!</div>`;
+        body.innerHTML   = `<div style="color:#4ade80;font-size:12px;text-align:center;padding:20px 0;">✅ "${esc(title)}" 저장 완료!</div>`;
         footer.innerHTML = `<button class="hist-btn primary" style="flex:1" onclick="closeHistoryModal()">확인</button>`;
     } catch(e) {
         body.innerHTML   = `<div style="color:#ff6b6b;font-size:12px;text-align:center;padding:20px 0;">❌ 저장 실패: ${esc(e.message)}</div>`;

@@ -7,6 +7,6 @@
     "start": ".\\node_modules\\.bin\\electron.cmd ."
   },
   "devDependencies": {
-    "electron": "^35.0.0"
+    "electron": "^42.1.0"
   }
 }
